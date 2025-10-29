@@ -1,0 +1,5 @@
+,,normalized_edit_distance,normalized_edit_distance,dtw_distance,dtw_distance,temporal_overlap,temporal_overlap
+,,mean,std,mean,std,mean,std
+corruption_type,is_corrupted,,,,,,
+linear,True,0.8167,0.0512,101222.9174,36468.9781,0.6688,0.0899
+normal,False,0.8091,0.0529,100745.8233,36305.6776,0.6722,0.0883
