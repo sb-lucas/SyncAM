@@ -1,16 +1,8 @@
-import librosa
-import numpy as np
-import matplotlib.pyplot as plt
-from IPython.display import Audio
-import mir_eval
 import pretty_midi
-import os
 import random
-import librosa.display
-import pandas as pd
-from tempfile import TemporaryDirectory
-import pretty_midi
+import os
 import soundfile as sf
+from multiprocessing import Pool
 
 # Piano Timbres:
 #  0	Acoustic Grand Piano
@@ -55,6 +47,7 @@ INSTRUMENTS = {'Acoustic Grand Piano':0,
                 'Trumpet':56,
                 'Trombone':57
     }
+SOUNDFONT_FILE = "./FluidR3_GM.sf2"
 
 def trim_random_midi_segment(midi_path, output_path, segment_length=1.0):
     """
@@ -122,27 +115,70 @@ def render_midi_to_audio(midi_path, soundfont_path, output_path, program_number,
 
     # Save audio file
     sf.write(output_path, audio, sample_rate)
+    
+def synthesize_dataset(samples_dir, 
+                       output_dir, 
+                       instruments=INSTRUMENTS.keys(),
+                       soundfont_file=SOUNDFONT_FILE, 
+                       workers=1):
+        """
+        Synthesize a dataset of MIDI files to audio using different instruments.
+        
+        Args:
+            samples_dir: Directory containing MIDI files to process
+            output_dir: Directory to save synthesized audio files
+            soundfont_file: Path to soundfont file (default: SOUNDFONT_FILE)
+        """
+        if not os.path.exists(soundfont_file):
+            print(f"Soundfont file not found: {soundfont_file}")
+            return
 
-def synthesize_dataset():
-    soundfont_file = "../diego/artificial/create_dataset/sf/FluidR3_GM.sf2"
+        if instruments is None:
+            instruments = INSTRUMENTS.keys()
 
-    if not os.path.exists(soundfont_file):
-        print(f"Soundfont file not found: {soundfont_file}")
-        return
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
 
-    if not os.path.exists('../sintetizados'):
-        os.makedirs("../sintetizados", exist_ok=True)
-
-        for instrument, midi_number in INSTRUMENTS.items():
-            instrument = instrument.replace(" ", "_").lower()
-            os.makedirs(f"../sintetizados/{instrument}", exist_ok=True)
-            print(f"Processing instrument: {instrument}")
-            
-            for i, midi in enumerate(os.listdir('maestro_midi')):
-                output_file = f"../sintetizados/{instrument}/{midi.split('.')[0]}.wav"
-                if os.path.exists(output_file):
+        if workers > 1:
+            tasks = []
+            for instrument, midi_number in INSTRUMENTS.items():
+                if instrument not in instruments:
                     continue
+                print(f"Processing instrument: {instrument}")
+                instrument_name = instrument.replace(" ", "_").lower()
+                instrument_dir = os.path.join(output_dir, instrument_name)
+                os.makedirs(instrument_dir, exist_ok=True)
+                for i, midi in enumerate(os.listdir(samples_dir)):
+                    if not midi.lower().endswith('.mid') and not midi.lower().endswith('.midi'):
+                        continue
+                        
+                    output_file = os.path.join(instrument_dir, f"{midi.split('.')[0]}.wav")
+                    if os.path.exists(output_file):
+                        continue
 
-                print(f"Processing MIDI file {i + 1}: {midi}")
-                midi_path = f"maestro_midi/{midi}"
-                render_midi_to_audio(midi_path, soundfont_file, output_file, midi_number)
+                    print(f"Queueing MIDI file {i + 1}: {midi}")
+                    midi_path = os.path.join(samples_dir, midi)
+                    tasks.append((midi_path, soundfont_file, output_file, midi_number))
+            
+            with Pool(processes=workers) as pool:
+                pool.starmap(render_midi_to_audio, tasks)
+        else:
+            for instrument, midi_number in INSTRUMENTS.items():
+                if instrument not in instruments:
+                    continue
+                print(f"Processing instrument: {instrument}")
+                instrument_name = instrument.replace(" ", "_").lower()
+                instrument_dir = os.path.join(output_dir, instrument_name)
+                os.makedirs(instrument_dir, exist_ok=True)
+                
+                for i, midi in enumerate(os.listdir(samples_dir)):
+                    if not midi.lower().endswith('.mid') and not midi.lower().endswith('.midi'):
+                        continue
+                        
+                    output_file = os.path.join(instrument_dir, f"{midi.split('.')[0]}.wav")
+                    if os.path.exists(output_file):
+                        continue
+
+                    print(f"Processing MIDI file {i + 1}: {midi}")
+                    midi_path = os.path.join(samples_dir, midi)
+                    render_midi_to_audio(midi_path, soundfont_file, output_file, midi_number)
