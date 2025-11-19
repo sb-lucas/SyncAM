@@ -1,0 +1,9 @@
+samples/
+.vscode
+__pycache__/
+samples*/
+transcribed*/
+.ipynb_checkpoints/
+.venv/
+basic-pitch/
+synthetic_wavs/
