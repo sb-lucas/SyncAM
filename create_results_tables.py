@@ -204,14 +204,6 @@ def create_table_image(df, title, output_path, filter_type='filtered'):
     recall_min, recall_max = (min(recalls), max(recalls)) if recalls else (0, 1)
     f1_min, f1_max = (min(f1_scores), max(f1_scores)) if f1_scores else (0, 1)
     
-    def get_text_color(bg_color):
-        """Determinar cor do texto baseado no brilho do fundo"""
-        # Converter hex para RGB
-        bg_color = bg_color.lstrip('#')
-        r, g, b = tuple(int(bg_color[i:i+2], 16) for i in (0, 2, 4))
-        # Calcular brilho (luminância relativa)
-        brightness = (r * 299 + g * 587 + b * 114) / 1000
-        return 'white' if brightness < 128 else 'black'
     
     # Estilizar cabeçalho
     for i in range(len(headers)):
@@ -235,9 +227,10 @@ def create_table_image(df, title, output_path, filter_type='filtered'):
                 table[(i, j)].set_text_props(color='black')
             # Colunas numéricas com heatmap
             elif j in numeric_cols and numeric_row:
-                if j == 3:  # Mean Error (invertido: baixo = verde, alto = vermelho)
+                if j == 3:  # Mean Error (baixo = verde, alto = vermelho)
                     if mean_error_max > mean_error_min:
-                        normalized = 1.0 - (numeric_row['mean_error'] - mean_error_min) / (mean_error_max - mean_error_min)
+                        # Inverter: erro baixo (min) = verde (0), erro alto (max) = vermelho (1)
+                        normalized = (numeric_row['mean_error'] - mean_error_min) / (mean_error_max - mean_error_min)
                     else:
                         normalized = 0.5
                     color = cmap(normalized)
@@ -247,7 +240,8 @@ def create_table_image(df, title, output_path, filter_type='filtered'):
                 elif j == 4:  # Precision (alto = verde, baixo = vermelho)
                     if numeric_row['precision'] is not None:
                         if precision_max > precision_min:
-                            normalized = (numeric_row['precision'] - precision_min) / (precision_max - precision_min)
+                            # Inverter: precision alto (max) = verde (0), precision baixo (min) = vermelho (1)
+                            normalized = 1.0 - (numeric_row['precision'] - precision_min) / (precision_max - precision_min)
                         else:
                             normalized = 0.5
                         color = cmap(normalized)
@@ -259,7 +253,8 @@ def create_table_image(df, title, output_path, filter_type='filtered'):
                 elif j == 5:  # Recall (alto = verde, baixo = vermelho)
                     if numeric_row['recall'] is not None:
                         if recall_max > recall_min:
-                            normalized = (numeric_row['recall'] - recall_min) / (recall_max - recall_min)
+                            # Inverter: recall alto (max) = verde (0), recall baixo (min) = vermelho (1)
+                            normalized = 1.0 - (numeric_row['recall'] - recall_min) / (recall_max - recall_min)
                         else:
                             normalized = 0.5
                         color = cmap(normalized)
@@ -271,7 +266,8 @@ def create_table_image(df, title, output_path, filter_type='filtered'):
                 elif j == 6:  # F1-Score (alto = verde, baixo = vermelho)
                     if numeric_row['f1_score'] is not None:
                         if f1_max > f1_min:
-                            normalized = (numeric_row['f1_score'] - f1_min) / (f1_max - f1_min)
+                            # Inverter: f1 alto (max) = verde (0), f1 baixo (min) = vermelho (1)
+                            normalized = 1.0 - (numeric_row['f1_score'] - f1_min) / (f1_max - f1_min)
                         else:
                             normalized = 0.5
                         color = cmap(normalized)
@@ -284,8 +280,7 @@ def create_table_image(df, title, output_path, filter_type='filtered'):
                     hex_color = '#f0f0f0' if i % 2 == 0 else 'white'
                 
                 table[(i, j)].set_facecolor(hex_color)
-                text_color = get_text_color(hex_color)
-                table[(i, j)].set_text_props(color=text_color, weight='bold')
+                table[(i, j)].set_text_props(color='black', weight='bold')
             else:
                 # Fallback para outras colunas
                 if i % 2 == 0:
