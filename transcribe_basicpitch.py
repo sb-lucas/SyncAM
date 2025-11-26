@@ -34,35 +34,57 @@ def setup_logging():
     )
     return logging.getLogger(__name__)
 
-def get_all_wav_files(wavs_dir):
+def get_all_wav_files(wavs_dir, base_dir=None):
     """
-    Obter todos os arquivos .wav organizados por instrumento
+    Obter todos os arquivos de áudio organizados por caminho relativo (recursivamente)
     
     Args:
-        wavs_dir (str): Caminho para a pasta samples_wavs
+        wavs_dir (str): Caminho para a pasta base a processar
+        base_dir (str): Diretório base para manter estrutura relativa (opcional)
         
     Returns:
-        dict: {instrumento: [lista_de_arquivos_wav]}
+        dict: {caminho_relativo: [lista_de_arquivos_audio]}
     """
     instruments = {}
     
     if not os.path.exists(wavs_dir):
         raise FileNotFoundError(f"Diretório não encontrado: {wavs_dir}")
     
-    # Listar todas as pastas de instrumentos
-    for instrument_dir in sorted(os.listdir(wavs_dir)):
-        instrument_path = os.path.join(wavs_dir, instrument_dir)
-        
-        if os.path.isdir(instrument_path):
-            # Encontrar todos os arquivos .wav nesta pasta
-            wav_pattern = os.path.join(instrument_path, "*.wav")
-            wav_files = glob.glob(wav_pattern)
-            
-            if wav_files:
-                instruments[instrument_dir] = sorted(wav_files)
-                print(f"Encontrados {len(wav_files)} arquivos .wav para {instrument_dir}")
-            else:
-                print(f"Nenhum arquivo .wav encontrado para {instrument_dir}")
+    # Se base_dir não fornecido, usar wavs_dir como base
+    if base_dir is None:
+        base_dir = wavs_dir
+    
+    wavs_dir_path = Path(wavs_dir)
+    base_dir_path = Path(base_dir)
+    
+    # Buscar recursivamente todos os arquivos de áudio
+    audio_extensions = ['.wav', '.mp3', '.flac', '.m4a', '.ogg']
+    
+    for audio_file in sorted(wavs_dir_path.rglob("*")):
+        if audio_file.is_file():
+            # Verificar se é um arquivo de áudio
+            if any(audio_file.suffix.lower() == ext.lower() for ext in audio_extensions):
+                # Calcular caminho relativo ao diretório base
+                try:
+                    rel_path = audio_file.parent.relative_to(base_dir_path)
+                except ValueError:
+                    # Se não é relativo ao base_dir, usar relativo ao wavs_dir
+                    rel_path = audio_file.parent.relative_to(wavs_dir_path)
+                
+                # Usar caminho relativo como chave (ou "." se for o diretório raiz)
+                if str(rel_path) == ".":
+                    key = wavs_dir_path.name
+                else:
+                    key = str(rel_path)
+                
+                if key not in instruments:
+                    instruments[key] = []
+                instruments[key].append(str(audio_file))
+    
+    # Ordenar arquivos em cada grupo
+    for key in instruments:
+        instruments[key] = sorted(instruments[key])
+        print(f"Encontrados {len(instruments[key])} arquivos de áudio em '{key}'")
     
     return instruments
 
@@ -130,12 +152,14 @@ def main():
     parser = argparse.ArgumentParser(description="Transcrever áudios sintéticos usando Basic Pitch")
     parser.add_argument("wavs_dir", type=str, help="Diretório contendo arquivos WAV sintéticos")
     parser.add_argument("--output_dir", type=str, default="transcribed_midis", help="Diretório para salvar os MIDIs transcritos")
+    parser.add_argument("--base_dir", type=str, default=None, help="Diretório base para manter estrutura relativa (ex: data/)")
     parser.add_argument("--device", type=str, default="cpu", help="Dispositivo para execução do modelo (cpu, cuda, ou cuda:0)")
     parser.add_argument("--gpu_id", type=int, default=0, help="ID da GPU para usar quando device=cuda (padrão: 0)")
     parser.add_argument("--batch_size", type=int, default=1, help="Número de arquivos para processar por lote (experimental)")
     args = parser.parse_args()
     wavs_dir = args.wavs_dir
     output_base_dir = args.output_dir
+    base_dir = args.base_dir if args.base_dir else wavs_dir
     device = args.device
     gpu_id = args.gpu_id
     batch_size = args.batch_size
@@ -268,9 +292,9 @@ def main():
             logger.error("Tente reinstalar: pip install basic-pitch")
             return
     
-    # Obter todos os arquivos WAV organizados por instrumento
+    # Obter todos os arquivos WAV organizados por caminho relativo
     try:
-        instruments = get_all_wav_files(wavs_dir)
+        instruments = get_all_wav_files(wavs_dir, base_dir=base_dir)
     except FileNotFoundError as e:
         logger.error(str(e))
         return
@@ -295,6 +319,7 @@ def main():
         logger.info(f"{'='*60}")
         
         # Criar diretório para este instrumento
+        # A chave já é o caminho relativo, então podemos usar diretamente
         instrument_output_dir = os.path.join(output_base_dir, instrument)
         Path(instrument_output_dir).mkdir(parents=True, exist_ok=True)
         

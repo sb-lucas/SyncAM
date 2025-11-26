@@ -3,7 +3,6 @@
 import librosa
 import numpy as np
 import matplotlib.pyplot as plt
-from IPython.display import Audio
 import mir_eval
 import pretty_midi
 import os
@@ -11,7 +10,6 @@ import random
 import librosa.display
 import pandas as pd
 from tempfile import TemporaryDirectory
-import pretty_midi
 import soundfile as sf
 try:
     import madmom
