@@ -7,4 +7,8 @@ transcribed*/
 .venv/
 basic-pitch/
 synthetic_wavs/
+<<<<<<< HEAD
 data/
+=======
+datasets/
+>>>>>>> b6800e367d27a1dac8049db0d43a39d60b7adee4

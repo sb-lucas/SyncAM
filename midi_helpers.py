@@ -60,12 +60,17 @@ def trim_random_midi_segment(midi_path, output_path, segment_length=1.0):
     """
 
     print(f"Loading MIDI: {midi_path}")
-    pm = pretty_midi.PrettyMIDI(midi_path)
+    try:
+        pm = pretty_midi.PrettyMIDI(midi_path)
+    except Exception as e:
+        print(f"Error loading MIDI file {midi_path}: {str(e)}")
+        print(f"Skipping corrupted file: {os.path.basename(midi_path)}")
+        return False
 
     midi_duration = pm.get_end_time()
     if midi_duration <= segment_length:
         print(f"MIDI is too short ({midi_duration:.2f}s), skipping")
-        return
+        return False
 
     # Choose a random start time so we stay within file bounds
     start_time = random.uniform(0, midi_duration - segment_length)
@@ -88,8 +93,13 @@ def trim_random_midi_segment(midi_path, output_path, segment_length=1.0):
         new_pm.instruments.append(new_inst)
 
     # Create output dir if needed
-    new_pm.write(output_path)
-    print(f"Saved trimmed MIDI to {output_path}")
+    try:
+        new_pm.write(output_path)
+        print(f"Saved trimmed MIDI to {output_path}")
+        return True
+    except Exception as e:
+        print(f"Error saving trimmed MIDI to {output_path}: {str(e)}")
+        return False
 
 
 def render_midi_to_audio(midi_path, soundfont_path, output_path, program_number, sample_rate=44100):
@@ -104,21 +114,41 @@ def render_midi_to_audio(midi_path, soundfont_path, output_path, program_number,
         sample_rate: Sample rate for the output audio (default: 44100)
 
     """
-    # Load MIDI file
-    pm = pretty_midi.PrettyMIDI(midi_path)
+    try:
+        # Load MIDI file
+        pm = pretty_midi.PrettyMIDI(midi_path)
 
-    for instrument in pm.instruments:
-        instrument.program = program_number
+        for instrument in pm.instruments:
+            instrument.program = program_number
 
-    # Generate audio using the soundfont
-    audio = pm.fluidsynth(sf2_path=soundfont_path, fs=sample_rate)
+        # Generate audio using the soundfont
+        audio = pm.fluidsynth(sf2_path=soundfont_path, fs=sample_rate)
 
-    # Save audio file
-    sf.write(output_path, audio, sample_rate)
+        # Save audio file
+        sf.write(output_path, audio, sample_rate)
+        print(f"Successfully synthesized: {midi_path} -> {output_path}")
+        
+    except Exception as e:
+        print(f"Error processing MIDI file {midi_path}: {str(e)}")
+        print(f"Skipping corrupted file: {os.path.basename(midi_path)}")
+        return False
+    
+    return True
+
+def safe_render_midi_to_audio(args):
+    """
+    Safe wrapper for render_midi_to_audio to handle exceptions in multiprocessing
+    """
+    try:
+        return render_midi_to_audio(*args)
+    except Exception as e:
+        midi_path = args[0]
+        print(f"Error in multiprocessing for {midi_path}: {str(e)}")
+        return False
     
 def synthesize_dataset(samples_dir, 
                        output_dir, 
-                       instruments=INSTRUMENTS.keys(),
+                       instruments_ids=None,
                        soundfont_file=SOUNDFONT_FILE, 
                        workers=1):
         """
@@ -133,8 +163,8 @@ def synthesize_dataset(samples_dir,
             print(f"Soundfont file not found: {soundfont_file}")
             return
 
-        if instruments is None:
-            instruments = INSTRUMENTS.keys()
+        if instruments_ids is None:
+            instruments_ids = INSTRUMENTS.values()
 
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
@@ -142,7 +172,7 @@ def synthesize_dataset(samples_dir,
         if workers > 1:
             tasks = []
             for instrument, midi_number in INSTRUMENTS.items():
-                if instrument not in instruments:
+                if midi_number not in instruments_ids:
                     continue
                 print(f"Processing instrument: {instrument}")
                 instrument_name = instrument.replace(" ", "_").lower()
@@ -154,6 +184,7 @@ def synthesize_dataset(samples_dir,
                         
                     output_file = os.path.join(instrument_dir, f"{midi.split('.')[0]}.wav")
                     if os.path.exists(output_file):
+                        print(f"File already exists, skipping: {output_file}")
                         continue
 
                     print(f"Queueing MIDI file {i + 1}: {midi}")
@@ -161,10 +192,13 @@ def synthesize_dataset(samples_dir,
                     tasks.append((midi_path, soundfont_file, output_file, midi_number))
             
             with Pool(processes=workers) as pool:
-                pool.starmap(render_midi_to_audio, tasks)
+                results = pool.map(safe_render_midi_to_audio, tasks)
+                successful = sum(1 for result in results if result)
+                total = len(tasks)
+                print(f"Synthesis completed: {successful}/{total} files processed successfully")
         else:
             for instrument, midi_number in INSTRUMENTS.items():
-                if instrument not in instruments:
+                if midi_number not in instruments_ids:
                     continue
                 print(f"Processing instrument: {instrument}")
                 instrument_name = instrument.replace(" ", "_").lower()
@@ -177,8 +211,11 @@ def synthesize_dataset(samples_dir,
                         
                     output_file = os.path.join(instrument_dir, f"{midi.split('.')[0]}.wav")
                     if os.path.exists(output_file):
+                        print(f"File already exists, skipping: {output_file}")
                         continue
 
                     print(f"Processing MIDI file {i + 1}: {midi}")
                     midi_path = os.path.join(samples_dir, midi)
-                    render_midi_to_audio(midi_path, soundfont_file, output_file, midi_number)
+                    success = render_midi_to_audio(midi_path, soundfont_file, output_file, midi_number)
+                    if not success:
+                        print(f"Skipped corrupted file: {midi}")
