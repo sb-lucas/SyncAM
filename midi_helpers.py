@@ -122,27 +122,3 @@ def render_midi_to_audio(midi_path, soundfont_path, output_path, program_number,
 
     # Save audio file
     sf.write(output_path, audio, sample_rate)
-
-def synthesize_dataset():
-    soundfont_file = "../diego/artificial/create_dataset/sf/FluidR3_GM.sf2"
-
-    if not os.path.exists(soundfont_file):
-        print(f"Soundfont file not found: {soundfont_file}")
-        return
-
-    if not os.path.exists('../sintetizados'):
-        os.makedirs("../sintetizados", exist_ok=True)
-
-        for instrument, midi_number in INSTRUMENTS.items():
-            instrument = instrument.replace(" ", "_").lower()
-            os.makedirs(f"../sintetizados/{instrument}", exist_ok=True)
-            print(f"Processing instrument: {instrument}")
-            
-            for i, midi in enumerate(os.listdir('maestro_midi')):
-                output_file = f"../sintetizados/{instrument}/{midi.split('.')[0]}.wav"
-                if os.path.exists(output_file):
-                    continue
-
-                print(f"Processing MIDI file {i + 1}: {midi}")
-                midi_path = f"maestro_midi/{midi}"
-                render_midi_to_audio(midi_path, soundfont_file, output_file, midi_number)
