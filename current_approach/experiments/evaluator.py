@@ -7,7 +7,7 @@ import random
 import copy
 import pandas as pd
 import os
-
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from scipy.stats import spearmanr
 import numpy as np
 from sklearn.metrics import roc_auc_score
@@ -37,15 +37,38 @@ class Evaluator():
         metrics = self.__calculate_metrics__(df)
 
         return metrics
+    
+    @staticmethod
+    def process_pair(args):
+        synthesized_midi, corrupt_midi, synthesized_dir, corrupt_dir, score_calculator = args
+
+        synthesized_midi_path = os.path.join(synthesized_dir, synthesized_midi)
+        corrupt_midi_path = os.path.join(corrupt_dir, corrupt_midi)
+
+        song_name = synthesized_midi.split('.')[0]
+        parts = corrupt_midi.split('_')
+
+        corruption_amount = int(parts[-1].split('.')[0]) / 100
+        corruption_type = parts[-2]
+
+        score = score_calculator(synthesized_midi_path, corrupt_midi_path)
+
+        return {
+            "audio": song_name,
+            "midi": corrupt_midi,
+            "corruption_type": corruption_type,
+            "corruption_amount": corruption_amount,
+            "score": score,
+            "label": int(corruption_amount > 0)
+        }
 
     def __calculate_scores__(self):
         #calculate scores for all audio-midi pairs in all corruption types and saves in a df for later
         #calculation of metrics
 
-        rows = []
+        #build list of tasks to process in parallel
+        tasks = []
         for synthesized_midi in os.listdir(self.synthesized_midi_folder):
-
-            synthesized_midi_path = os.path.join(self.synthesized_midi_folder, synthesized_midi)
             song_name = synthesized_midi.split('.')[0]
 
             corrupt_midis = [
@@ -54,24 +77,29 @@ class Evaluator():
             ]
 
             for corrupt_midi in corrupt_midis:
+                tasks.append((
+                    synthesized_midi,
+                    corrupt_midi,
+                    self.synthesized_midi_folder,
+                    self.corrupt_midi_folder,
+                    self.score_calculator
+                ))
 
-                corrupt_midi_path = os.path.join(self.corrupt_midi_folder, corrupt_midi)
+        #define the number of workers for parallel processing, using 70% of available CPU cores
+        max_workers = max(1, int(os.cpu_count() * 0.7))
+        print(f"Processing {len(tasks)} tasks with {max_workers} workers...")
 
-                parts = corrupt_midi.split('_')
+        #process tasks in parallel and collect results
+        rows = []
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(self.process_pair, task) for task in tasks]
 
-                corruption_amount = int(parts[-1].split('.')[0])/100
-                corruption_type = parts[-2]
-
-                score = self.score_calculator(synthesized_midi_path, corrupt_midi_path)
-
-                rows.append({
-                    "audio": song_name,
-                    "midi": corrupt_midi,
-                    "corruption_type": corruption_type,
-                    "corruption_amount": corruption_amount,
-                    "score": score,
-                    "label": int(corruption_amount > 0)
-                })
+            for i, f in enumerate(as_completed(futures)):
+                try:
+                    rows.append(f.result())
+                    print(f"{i+1}/{len(tasks)}")
+                except Exception as e:
+                    print(f"FAILED {i+1}: {e}")
 
         df = pd.DataFrame(rows)
 
