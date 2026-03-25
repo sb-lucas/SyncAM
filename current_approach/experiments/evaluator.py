@@ -1,10 +1,5 @@
-import pretty_midi
 import soundfile as sf
-import librosa
-import matplotlib.pyplot as plt
 import numpy as np
-import random
-import copy
 import pandas as pd
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -86,7 +81,8 @@ class Evaluator():
                 ))
 
         #define the number of workers for parallel processing, using 70% of available CPU cores
-        max_workers = max(1, int(os.cpu_count() * 0.7))
+        max_workers = max(1, int(os.cpu_count() * 0.2))
+        #max_workers = 1
         print(f"Processing {len(tasks)} tasks with {max_workers} workers...")
 
         #process tasks in parallel and collect results

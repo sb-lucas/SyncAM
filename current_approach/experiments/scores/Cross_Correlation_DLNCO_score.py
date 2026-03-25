@@ -1,52 +1,42 @@
 import numpy as np
 
-def normalized_cross_correlation(X, Y):
+def cross_correlation_dlnco_score(audio_path, midi_path):
     """
-    X: (12, T1)
-    Y: (12, T2)
+    Alignment score WITHOUT allowing time shifts.
+    Penalizes onset misalignment.
+
+    Args:
+        S1: (F, T1)
+        S2: (F, T2)
+
+    Returns:
+        score in [0, 1]
     """
 
-    # L2 normalize along chroma dimension (important)
-    X = X / (np.linalg.norm(X, axis=0, keepdims=True) + 1e-8)
-    Y = Y / (np.linalg.norm(Y, axis=0, keepdims=True) + 1e-8)
+    #Load DLNCO features
+    root_folder = '/'.join(audio_path.split('/')[:-2])
+    audio_file = audio_path.split('/')[-1].split('.')[0]
+    midi_file = midi_path.split('/')[-1].split('.')[0]
+    S1 = np.load(f'{root_folder}/synthesized_midi_dlnco/{audio_file}.npy')
+    S2 = np.load(f'{root_folder}/corrupt_midi_dlnco/{midi_file}.npy')
 
-    T1 = X.shape[1]
-    T2 = Y.shape[1]
+    #make sure they have the same number of frequency bins
+    assert S1.shape[0] == S2.shape[0] 
 
-    max_corr = -np.inf
+    # --- match length (truncate to shortest) ---
+    T = min(S1.shape[1], S2.shape[1])
+    S1 = S1[:, :T]
+    S2 = S2[:, :T]
 
-    # lag: shift Y relative to X
-    for lag in range(-T2 + 1, T1):
-        
-        if lag < 0:
-            x_start = 0
-            y_start = -lag
-        else:
-            x_start = lag
-            y_start = 0
+    def normalize(S):
+        return S / (np.linalg.norm(S, axis=0, keepdims=True) + 1e-8)
 
-        length = min(T1 - x_start, T2 - y_start)
-        if length <= 0:
-            continue
+    S1 = normalize(S1)
+    S2 = normalize(S2)
 
-        X_seg = X[:, x_start:x_start+length]
-        Y_seg = Y[:, y_start:y_start+length]
+    # --- cosine similarity across all frames ---
+    corr = np.mean(np.sum(S1 * S2, axis=0))
 
-        # cosine similarity per frame, then mean
-        sim = np.sum(X_seg * Y_seg, axis=0)  # (length,)
-        corr = np.mean(sim)
+    assert corr <= 1 and corr >= 0, f"Warning: precisa reescalar: {corr}"
 
-        if corr > max_corr:
-            max_corr = corr
-
-    return max_corr
-
-def DLNCO_cross_correlation_score(dlnco_audio, dlnco_midi):
-
-    # compute max correlation
-    max_corr = normalized_cross_correlation(dlnco_audio, dlnco_midi)
-
-    # max_corr is cosine similarity ∈ [-1, 1]
-    score = (max_corr + 1.0) / 2.0
-
-    return np.clip(score, 0.0, 1.0)
+    return float(np.clip(corr, 0.0, 1.0))
