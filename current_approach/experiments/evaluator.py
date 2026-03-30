@@ -81,7 +81,7 @@ class Evaluator():
                 ))
 
         #define the number of workers for parallel processing, using 70% of available CPU cores
-        max_workers = max(1, int(os.cpu_count() * 0.2))
+        max_workers = max(1, int(os.cpu_count() * 0.1))
         #max_workers = 1
         print(f"Processing {len(tasks)} tasks with {max_workers} workers...")
 

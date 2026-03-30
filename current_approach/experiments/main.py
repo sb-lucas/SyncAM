@@ -8,6 +8,7 @@ from scores.DTW_Standard_CENS_score import DTW_Standard_CENS_score
 
 #from scores.Onset_F_score import Onset_F_score
 #from scores.Onset_Alignment_Error_score import Onset_Alignment_Error_score
+from scores.Transcription_IOI import Onset_IOI_Pitch_Alignment_Score
 
 # from scores.Embedding_Distance_Audio_Audio_score import Embedding_Distance_Audio_Audio_score
 # from scores.Embedding_Distance_Audio_MIDI_score import Embedding_Distance_Audio_MIDI_score
@@ -28,10 +29,12 @@ def main():
 
     #get_score = DTW_MrMs_DLNCO_score
     #get_score = DTW_MrMs_CENS_score
-    get_score = DTW_Standard_CENS_score
+    #get_score = DTW_Standard_CENS_score
 
     #get_score = Onset_F_score
     #get_score = Onset_Alignment_Error_score
+    get_score = Onset_IOI_Pitch_Alignment_Score
+    #get_score = Tanimoto_Blurred_Score
 
     #get_score = Embedding_Distance_Audio_MIDI_score
     #get_score = Embedding_Distance_Audio_Audio_score

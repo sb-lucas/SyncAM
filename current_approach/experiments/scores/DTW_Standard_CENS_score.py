@@ -5,22 +5,27 @@ from synctoolbox.feature.chroma import pitch_to_CENS
 from synctoolbox.dtw.core import compute_warping_path
 import pretty_midi
 
+def extract_cens_audio(audio_path, sr=22050, hop_length=2048):
+    y, sr = librosa.load(audio_path, sr=sr)
+
+    chroma = librosa.feature.chroma_cqt(
+        y=y,
+        sr=sr,
+        hop_length=hop_length
+    )
+
+    cens = librosa.feature.chroma_cens(
+        C=chroma,
+        hop_length=hop_length
+    )
+
+    return cens
 
 def DTW_Standard_CENS_score(audio_path, midi_path):
-
     # ==========================================
     # 1. AUDIO FEATURE EXTRACTION
     # ==========================================
-    feature_rate = 10
-
-    # Load audio
-    audio, fs = librosa.load(audio_path, sr=22050)
-    
-    # Extract 120-dimensional pitch features 
-    f_pitch_audio = audio_to_pitch_features(audio, Fs=fs, feature_rate=feature_rate)
-    
-    # Compute CENS directly from the Pitch features
-    f_cens_audio, CENS_feature_rate = pitch_to_CENS(f_pitch_audio, input_feature_rate=feature_rate)
+    f_cens_audio = extract_cens_audio(audio_path)
     
     # ==========================================
     # 2. MIDI FEATURE EXTRACTION
@@ -29,10 +34,7 @@ def DTW_Standard_CENS_score(audio_path, midi_path):
     root_folder = '/'.join(audio_path.split('/')[:-2])
     midi_file = midi_path.split('/')[-1].split('.')[0]
     midi_path = f'{root_folder}/corrupt_midi_audio/{midi_file}.wav'
-    midi_audio, fs = librosa.load(midi_path, sr=22050)
-    
-    f_pitch_midi = audio_to_pitch_features(midi_audio, Fs=22050, feature_rate=feature_rate)
-    f_cens_midi, CENS_feature_rate = pitch_to_CENS(f_pitch_midi, input_feature_rate=feature_rate)
+    f_cens_midi = extract_cens_audio(midi_path)
 
     # ==========================================
     # 3. COST MATRIX & DTW

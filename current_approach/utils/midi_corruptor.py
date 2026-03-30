@@ -94,7 +94,6 @@ def onset_corruption(midi, shift_amount):
             note.start = new_start
             note.end = new_end
 
-
     return midi
 
 def apply_corruptions(input_path, save_folder):
