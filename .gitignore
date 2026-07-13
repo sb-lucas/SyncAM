@@ -1,1 +1,4 @@
-/current_approach/tralha.ipynb
+*.ipynb
+*.csv
+*.txt
+*.out
