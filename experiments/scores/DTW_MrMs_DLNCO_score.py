@@ -3,18 +3,15 @@ import librosa
 from synctoolbox.dtw.mrmsdtw import sync_via_mrmsdtw
 from scipy.spatial.distance import cdist
 
-def DTW_MrMs_DLNCO_score(audio_path, midi_path):
+def DTW_MrMs_DLNCO_score(audio_features, midi_features):
     """
     Uses Synctoolbox's multi-scale DTW to find the alignment path with no memory 
     footprint, then calculates the mean cosine distance along that path for the score.
     """
 
     #Load DLNCO features
-    root_folder = '/'.join(audio_path.split('/')[:-2])
-    audio_file = audio_path.split('/')[-1].split('.')[0]
-    midi_file = midi_path.split('/')[-1].split('.')[0]
-    audio_dlnco = np.load(f'{root_folder}/synthesized_midi_dlnco/{audio_file}.npy')
-    midi_dlnco = np.load(f'{root_folder}/corrupt_midi_dlnco/{midi_file}.npy')
+    audio_dlnco = audio_features
+    midi_dlnco = midi_features
 
     # 1. Calculate your feature rate (frames per second)
     # If sample_rate=22050 and hop_length=64, your rate is 22050 / 64 = 344.53

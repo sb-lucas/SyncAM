@@ -1,19 +1,20 @@
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 import sys
-import torch
 import numpy as np
-import torch.nn.functional as F
+print('importando')
+import torch
+print('importei coisas normais')
 import mido
 import torchaudio
 import soundfile as sf
-
+from dotenv import load_dotenv
 # Import CLaMP 3 specific architectures from their repository
 sys.path.append(os.path.abspath("/home/ldsbrandao/exp/clamp3/code/"))  
 from config import *
 from utils import *
 from samplings import *
 from transformers import BertConfig, Wav2Vec2FeatureExtractor, AutoModel
+print("importei")
 
 
 #----------------------------AUDIO TO MERT FEATURES--------------------------------------#
@@ -140,9 +141,13 @@ def load_clamp_model(device):
     model.eval()
     return model.to(device)
 
-def get_embedding(model, file_name, original_dir, save_dir, modality, device, processor, mert_model):
-    clean_file_name = file_name.split('.')[0]
+def get_embedding(model, file_name, original_dir, save_dir, modality, device, processor, mert_model, patchilizer):
+    clean_file_name = os.path.splitext(file_name)[0]  # Remove any additional extensions
     save_path = os.path.join(save_dir, clean_file_name + ".npy")
+
+    # Resume capability: skip if already processed
+    if os.path.exists(save_path):
+        return "SKIPPED (Already exists): " + file_name
 
     file_path = os.path.join(original_dir, file_name)
 
@@ -151,7 +156,6 @@ def get_embedding(model, file_name, original_dir, save_dir, modality, device, pr
         if modality == "midi":
             # Process raw MIDI file into MTF directly in memory
             item = get_mtf_from_midi(file_path)
-            patchilizer = M3Patchilizer()
             input_data = torch.tensor(patchilizer.encode(item, add_special_patches=True))
             max_input_length = PATCH_LENGTH
             
@@ -207,18 +211,12 @@ def get_embedding(model, file_name, original_dir, save_dir, modality, device, pr
 
         return "OK: " + file_name
 
-# ----------------------------MAIN EXECUTION--------------------------------------#
 def main():
-    #-----------------------------Load Paths----------------------------------#
-    root_dir = "/home/ldsbrandao/exp/smd"
-    corrupt_midi_dir = os.path.join(root_dir, "corrupt_midi")
-    synthesized_midi_dir = os.path.join(root_dir, "synthesized_midi")
-
-    corrupt_midi_clamp_dir = os.path.join(root_dir, "corrupt_midi_clamp")
-    synthesized_midi_clamp_dir = os.path.join(root_dir, "synthesized_midi_clamp")
-
-    os.makedirs(corrupt_midi_clamp_dir, exist_ok=True)
-    os.makedirs(synthesized_midi_clamp_dir, exist_ok=True)
+    load_dotenv()
+    DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
+    datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
+    
+    print("Running in strictly sequential mode (0 background workers).")
 
     #----------------------Load the models once--------------------------#
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -226,21 +224,40 @@ def main():
     
     processor, mert_model = load_mert_model(device)
     clamp_model = load_clamp_model(device)
+    patchilizer = M3Patchilizer() 
 
-    #----------------------Extract CLAMP of synthesized audio from original MIDIs----------------#
-    tam_original = len(os.listdir(synthesized_midi_dir))
-    audio_files = os.listdir(synthesized_midi_dir)
-    for i, file in enumerate(audio_files):
-        msg = get_embedding(clamp_model, file, synthesized_midi_dir, synthesized_midi_clamp_dir, "audio", device, processor, mert_model)
-        print(f"{i+1}/{tam_original} | {msg}")
+    #main loop
+    for dataset in datasets:
+        print(f"\nProcessing: {dataset}")
+
+        root_dir = os.path.join(DATASETS_FOLDER, dataset)
+        corrupt_midi_dir = os.path.join(root_dir, "corrupt_midi")
+        original_audio_dir = os.path.join(root_dir, "audios")
+
+        corrupt_midi_clamp_dir = os.path.join(root_dir, "corrupt_midi_clamp")
+        original_audio_clamp_dir = os.path.join(root_dir, "audios_clamp")
         
-    #----------------------Extract CLAMP of synthesized audio from corrupt MIDIs----------------#
-    tam_corrupt = len(os.listdir(corrupt_midi_dir))
-    midi_files = os.listdir(corrupt_midi_dir)
-    for i, file in enumerate(midi_files):
-        msg = get_embedding(clamp_model, file, corrupt_midi_dir, corrupt_midi_clamp_dir, "midi", device, 
-                                    processor, mert_model) 
-        print(f"{i+1}/{tam_corrupt} | {msg}")
+        # Ensure save directories exist
+        os.makedirs(corrupt_midi_clamp_dir, exist_ok=True)
+        os.makedirs(original_audio_clamp_dir, exist_ok=True)
+
+        #----------------------Extract CLAMP from original audios----------------#
+        if os.path.exists(original_audio_dir):
+            audio_files = sorted(f for f in os.listdir(original_audio_dir) if f.lower().endswith((".wav", ".mp3", ".flac")))
+            print(f"Found {len(audio_files)} audio files.")
+            for i, file in enumerate(audio_files):
+                msg = get_embedding(clamp_model, file, original_audio_dir, original_audio_clamp_dir, "audio", 
+                                    device, processor, mert_model, patchilizer) 
+                print(f"{i+1}/{len(audio_files)} | Audio | {msg}")
+        
+        #----------------------Extract CLAMP from corrupt MIDIs----------------#
+        if os.path.exists(corrupt_midi_dir):
+            midi_files = sorted(f for f in os.listdir(corrupt_midi_dir) if f.lower().endswith((".mid", ".midi")))
+            print(f"Found {len(midi_files)} MIDI files.")
+            for i, file in enumerate(midi_files):
+                msg = get_embedding(clamp_model, file, corrupt_midi_dir, corrupt_midi_clamp_dir, "midi", 
+                                    device, processor, mert_model, patchilizer) 
+                print(f"{i+1}/{len(midi_files)} | MIDI | {msg}")
 
 if __name__ == "__main__":
     main()

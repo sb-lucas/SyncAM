@@ -1,18 +1,11 @@
 import numpy as np
 import pretty_midi
 import mir_eval
-import madmom
-
 import sys
 import os
-sys.path.append(os.path.abspath(".."))
-from feature_extractors.extract_onset import get_onsets_from_midi, get_madmom_onsets
-
-import numpy as np
-import mir_eval
 from scipy.optimize import linear_sum_assignment
 
-def Onset_Alignment_Error_score(audio_file, midi_file, window=0.03, tau=0.03):
+def Onset_Alignment_Error_score(audio_features, midi_features, window=0.05, tau=0.05):
     """
     Computes the Mean Absolute Error between matched onsets and 
     penalizes unmatched events.
@@ -20,13 +13,14 @@ def Onset_Alignment_Error_score(audio_file, midi_file, window=0.03, tau=0.03):
     Parameters:
         audio_file (str): Path to the audio file.
         midi_file (str): Path to the MIDI file.
-        window (float): Max distance to consider a 'match' (e.g., 30ms).
+        window (float): Max distance to consider a 'match' (e.g., 50ms).
         penalty_seconds (float): Constant error added for every unmatched onset.
         tau (float): Time constant for exponential decay of timing score.
     """
+
     # 0. Extract onsets
-    audio_onsets = get_madmom_onsets(audio_file)
-    midi_onsets = get_onsets_from_midi(midi_file)
+    audio_onsets = audio_features
+    midi_onsets = midi_features
 
     if len(audio_onsets) == 0 or len(midi_onsets) == 0:
         return float('inf')
@@ -40,15 +34,11 @@ def Onset_Alignment_Error_score(audio_file, midi_file, window=0.03, tau=0.03):
 
     # 3. Filter matches by the Tolerance Window
     matches = []
-    unmatched_midi = len(midi_onsets)
-    unmatched_audio = len(audio_onsets)
 
     for m_idx, a_idx in zip(midi_indices, audio_indices):
         diff = cost_matrix[m_idx, a_idx]
         if diff <= window:
             matches.append(diff)
-            unmatched_midi -= 1
-            unmatched_audio -= 1
 
     # 4. Calculate components
     num_matches = len(matches)

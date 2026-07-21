@@ -1,25 +1,21 @@
 import numpy as np
 
 
-def cross_correlation_spectrogram_score(audio_path, midi_path):
+def Cross_Correlation_Spectrogram_score(audio_features, midi_features):
     """
     Alignment score WITHOUT allowing time shifts.
     Penalizes onset misalignment.
 
     Args:
-        S1: (F, T1)
-        S2: (F, T2)
+        audio_features: (F, T1)
+        midi_features: (F, T2)
 
     Returns:
         score in [0, 1]
     """
 
-    #Load spectrogram features
-    root_folder = '/'.join(audio_path.split('/')[:-2])
-    audio_file = audio_path.split('/')[-1].split('.')[0]
-    midi_file = midi_path.split('/')[-1].split('.')[0]
-    S1 = np.load(f'{root_folder}/synthesized_midi_spectrogram/{audio_file}.npy')
-    S2 = np.load(f'{root_folder}/corrupt_midi_spectrogram/{midi_file}.npy')
+    S1 = audio_features
+    S2 = midi_features    
 
     #make sure they have the same number of frequency bins
     assert S1.shape[0] == S2.shape[0] 

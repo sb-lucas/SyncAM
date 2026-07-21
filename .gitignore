@@ -2,3 +2,8 @@
 *.csv
 *.txt
 *.out
+/musicnet
+/smd
+/maestro
+/maps
+/datasets

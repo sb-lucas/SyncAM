@@ -7,10 +7,13 @@ from scipy.stats import spearmanr
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
+
+EPSILON = 1e-8  # small constant to avoid division by zero in stability
+
 class Evaluator():
     def __init__(self, root_folder, score_calculator):
         #we expect a root_folder with the dataset
-        #in it, there should be 4 subfolders: 
+        # in it, there should be 4 subfolders: 
         # 'audio' -> folder with original audio
         # 'midi' -> folder with original midi files
         # 'synthesized_midi' -> folder with audio synthesized from the original midi files
@@ -101,43 +104,59 @@ class Evaluator():
 
         return df
     
+    @staticmethod
+    def _per_song_monotonicity(x):
+        # Spearman correlation for a single song's 11 severity levels
+        return spearmanr(x["corruption_amount"], x["score"]).statistic
+
+    @staticmethod
+    def _per_song_adjacent_diffs(x):
+        # sort by severity so "adjacent" is meaningful (severity levels aren't
+        # generated in order, and future non-uniform spacing schemes rely on this)
+        x = x.sort_values("corruption_amount")
+        return np.diff(x["score"].values)  # signed: s_i - s_{i+1} style, see note below
+
     def __calculate_metrics__(self, df):
-        #uses calculate scores and aggregates them in different groups to return metrics in a df
+        # ---- Monotonicity: per-song Spearman, then averaged across songs ----
+        monotonicity_per_song = df.groupby(["audio", "corruption_type"]).apply(
+            self._per_song_monotonicity
+        )
+        monotonicity = monotonicity_per_song.groupby("corruption_type").mean()
 
-        #monotonicity
-        monotonicity = df.groupby("corruption_type").apply(
-            lambda x: spearmanr(x["corruption_amount"], x["score"]).statistic
+        # ---- Sensitivity & Consistency: both derived from per-song adjacent diffs ----
+        # diffs[i] = score_{i+1} - score_i (sorted by increasing severity)
+        adjacent_diffs = df.groupby(["audio", "corruption_type"]).apply(
+            self._per_song_adjacent_diffs
         )
 
-        #sensitivity
-        sensitivity = df.groupby(["audio", "corruption_type"]).apply(
-            lambda x: np.polyfit(x["corruption_amount"], x["score"], 1)[0]
-        )
-        sensitivity_mean = sensitivity.groupby("corruption_type").mean()
+        # Sensitivity: mean absolute step-to-step change, per song, then averaged
+        sensitivity_per_song = adjacent_diffs.apply(lambda d: np.mean(np.abs(d)))
+        sensitivity = sensitivity_per_song.groupby("corruption_type").mean()
 
-        #stability
-        stability_levels = df.groupby(["corruption_type", "corruption_amount"]).apply(
-            lambda x: x["score"].var()
-        )
+        # Consistency: std of the absolute step-to-step changes, per song, then averaged
+        consistency_per_song = adjacent_diffs.apply(lambda d: np.std(np.abs(d)))
+        consistency = consistency_per_song.groupby("corruption_type").mean()
+
+        # ---- Stability: coefficient of variation across songs, at each severity level,
+        # averaged over severity levels ----
+        def _cov(x):
+            mu = x["score"].mean()
+            sigma = x["score"].std()
+            return sigma / (abs(mu) + EPSILON)
+
+        stability_levels = df.groupby(["corruption_type", "corruption_amount"]).apply(_cov)
         stability = stability_levels.groupby("corruption_type").mean()
 
-        #separability
-        separability = df.groupby("corruption_type").apply(
-            lambda x: roc_auc_score(x["label"], -x["score"])
-        )
-
-        #aggregate metrics into a DataFrame
         df_metrics = pd.concat(
-            [monotonicity, sensitivity_mean, stability, separability],
+            [monotonicity, sensitivity, stability, consistency],
             axis=1
         )
         df_metrics.columns = [
             "monotonicity",
             "sensitivity",
             "stability",
-            "separability"
+            "consistency",
         ]
         df_metrics = df_metrics.reindex(["addRemove", "onset", "pitch", "all"])
-
 
         return df_metrics

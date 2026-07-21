@@ -6,6 +6,7 @@ import numpy as np
 import random
 import copy
 import os
+from dotenv import load_dotenv
 
 from midi_helpers import render_midi_to_audio
 
@@ -96,35 +97,46 @@ def onset_corruption(midi, shift_amount):
 
     return midi
 
-def apply_corruptions(input_path, save_folder):
+def apply_corruptions(midi_filename, input_path, save_folder):
     midi = pretty_midi.PrettyMIDI(input_path)
     total_notes = sum(len(instrument.notes) for instrument in midi.instruments)
 
-    file_name = input_path.split('.')[0]
-    file_name = file_name.split('/')[-1]
+    file_name = os.path.splitext(midi_filename)[0]
 
     for CA_percentage in [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
+        pitch_path = os.path.join(save_folder, f'{file_name}_pitch_{CA_percentage}.mid')
+        add_remove_path = os.path.join(save_folder, f'{file_name}_addRemove_{CA_percentage}.mid')
+        onset_path = os.path.join(save_folder, f'{file_name}_onset_{CA_percentage}.mid')
+        all_path = os.path.join(save_folder, f'{file_name}_all_{CA_percentage}.mid')
+
+        if os.path.exists(pitch_path) and os.path.exists(add_remove_path) and os.path.exists(onset_path) and os.path.exists(all_path):
+            print(f'Skipping {file_name} for CA: {CA_percentage} as all corrupted files already exist.')
+            continue
+        
+
         print(f'for ca: {CA_percentage}')
         num_corrupt_notes = total_notes * CA_percentage // 100
-        shift_amount = CA_percentage * 5 
+        
+        S = CA_percentage / 100
+        shift_amount = 500 * (S ** 2)  # in ms, matches S = (Δt/500)^(1/2)
 
         # 1. Pitch Swap (using a fresh copy)
         pitch_midi = pitch_swap(copy.deepcopy(midi), num_corrupt_notes)
-        pitch_midi.write(os.path.join(save_folder, f'{file_name}_pitch_{CA_percentage}.mid'))
+        pitch_midi.write(pitch_path)
 
         # 2. Add/Remove (using a fresh copy)
         add_remove_midi = add_remove(copy.deepcopy(midi), num_corrupt_notes*2)
-        add_remove_midi.write(os.path.join(save_folder, f'{file_name}_addRemove_{CA_percentage}.mid'))
+        add_remove_midi.write(add_remove_path)
 
         # 3. Onset Shift (using a fresh copy)
         onset_midi = onset_corruption(copy.deepcopy(midi), shift_amount)
-        onset_midi.write(os.path.join(save_folder, f'{file_name}_onset_{CA_percentage}.mid'))
+        onset_midi.write(onset_path)
 
         # 4. All corruptions combined
         all_corruptions_midi = pitch_swap(copy.deepcopy(midi), num_corrupt_notes)
-        all_corruptions_midi = add_remove(all_corruptions_midi, num_corrupt_notes)
+        all_corruptions_midi = add_remove(all_corruptions_midi, num_corrupt_notes*2)
         all_corruptions_midi = onset_corruption(all_corruptions_midi, shift_amount)
-        all_corruptions_midi.write(os.path.join(save_folder, f'{file_name}_all_{CA_percentage}.mid'))    
+        all_corruptions_midi.write(all_path)
 
 def main():
 
@@ -135,28 +147,32 @@ def main():
 
     random.seed(42)
 
-    root_folder = '/home/labic/bombril/raia/smd'
-    midi_folder = os.path.join(root_folder, 'midi')
-    audio_folder = os.path.join(root_folder, 'audio')
-    corrupt_midi_folder = os.path.join(root_folder, 'corrupt_midi')
-    synthesized_midi_folder = os.path.join(root_folder, 'synthesized_midi')
+    load_dotenv()
+    DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
+    SOUNDFONT_PATH = os.environ["SOUNDFONT_PATH"]
+    datasets = ['maestro']
+    #datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
 
-    os.makedirs(corrupt_midi_folder, exist_ok=True)
-    os.makedirs(synthesized_midi_folder, exist_ok=True)
+    for dataset in datasets:
+        print(f'Processing dataset: {dataset}')
 
-    soundfont_path = '/home/labic/bombril/raia/FluidR3_GM.sf2'
+        root_folder = os.path.join(DATASETS_FOLDER, dataset)
+        midi_folder = os.path.join(root_folder, 'midis')
+        corrupt_midi_folder = os.path.join(root_folder, 'corrupt_midi')
+        os.makedirs(corrupt_midi_folder, exist_ok=True)
 
-    for midi_file in os.listdir(midi_folder):
-        print(f'for file: {midi_file}')
-        midi_path = os.path.join(midi_folder, midi_file)
+        for midi_file in os.listdir(midi_folder):
+            print(f'for file: {midi_file}')
+            midi_path = os.path.join(midi_folder, midi_file)
 
-        apply_corruptions(midi_path, corrupt_midi_folder)
-
-        wav_file = midi_file.replace('.midi', '.wav') if midi_file.endswith('midi') else midi_file.replace('.mid', '.wav')
-        render_midi_to_audio(midi_path, soundfont_path, os.path.join(synthesized_midi_folder, wav_file), 0)
+            try:
+                apply_corruptions(midi_file, midi_path, corrupt_midi_folder)
+            except Exception as e:
+                print(f"FAILED: {midi_path}")
+                print(f"ERROR: {e}")
+                print(f"TYPE: {type(e).__name__}")
 
 if __name__ ==  "__main__":
-    
     main()
 
 

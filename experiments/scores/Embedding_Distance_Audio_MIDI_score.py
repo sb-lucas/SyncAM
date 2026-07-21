@@ -5,15 +5,11 @@ import numpy as np
 import torch.nn.functional as F
 import soundfile as sf
 
-def Embedding_Distance_Audio_MIDI_score(audio_path, midi_path):
+def Embedding_Distance_Audio_MIDI_score(audio_features, midi_features):
 
     #Load CLAMP Embeddings
-    root_folder = '/'.join(audio_path.split('/')[:-2])
-    audio_file = audio_path.split('/')[-1].split('.')[0]
-    midi_file = midi_path.split('/')[-1].split('.')[0]
-
-    audio_embeddings = np.load(f'{root_folder}/synthesized_midi_clamp/{audio_file}.npy')
-    midi_embeddings = np.load(f'{root_folder}/corrupt_midi_clamp/{midi_file}.npy')
+    audio_embeddings = audio_features
+    midi_embeddings = midi_features
 
     #convert to tensors
     audio_embeddings = torch.tensor(audio_embeddings)
