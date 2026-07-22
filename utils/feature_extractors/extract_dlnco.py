@@ -87,7 +87,6 @@ def get_midi_dlnco(midi_path, duration_sec=None, feature_rate=344):
     
     return dlnco
 
-
 def process_audio(audio, synthesized_midi_dir, synthesized_midi_dlnco_dir):
     """Worker function for a single audio file."""
     file_extension = ".wav" if audio.endswith(".wav") else ".mp3"
@@ -128,7 +127,6 @@ def run_parallel(files, worker_function, worker_args, max_workers, description, 
 
         for i, result in enumerate(results, start=1):
             print(f"{description}: "f"{i}/{total} | {result}")
-
 
 def main():
     load_dotenv()

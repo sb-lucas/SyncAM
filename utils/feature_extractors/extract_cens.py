@@ -11,9 +11,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 # CENS extraction (audio)
 # -----------------------------
 def extract_cens_audio(audio_file, original_dir, save_dir, sr=22050, hop_length=64):
-
-    file_extension = ".wav" if audio_file.endswith(".wav") else ".mp3"
-    save_path = os.path.join(save_dir, audio_file.replace(file_extension, ".npy"))
+    base_name = os.path.splitext(audio_file)[0]
+    save_path = os.path.join(save_dir, f"{base_name}.npy")
     
     if os.path.exists(save_path):
         return "SKIPPED (exists): " + audio_file
@@ -22,14 +21,9 @@ def extract_cens_audio(audio_file, original_dir, save_dir, sr=22050, hop_length=
     audio_path = os.path.join(original_dir, audio_file)
     y, sr = librosa.load(audio_path, sr=sr)
 
-    chroma = librosa.feature.chroma_cqt(
+    cens = librosa.feature.chroma_cens(
         y=y,
         sr=sr,
-        hop_length=hop_length
-    )
-
-    cens = librosa.feature.chroma_cens(
-        C=chroma,
         hop_length=hop_length
     )
 

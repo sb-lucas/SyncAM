@@ -32,8 +32,8 @@ def get_audio_spectrogram(audio_path, fs=22050, hop_length=64, n_fft=512):
 def process_audio(audio, original_dir, save_spectrogram_dir):
     """Worker function for a single audio file."""
 
-    file_extension = ".wav" if audio.endswith(".wav") else ".mp3"
-    save_path = os.path.join(save_spectrogram_dir, audio.replace(file_extension, ".npy"))
+    base_name = os.path.splitext(audio)[0]
+    save_path = os.path.join(save_spectrogram_dir, f"{base_name}.npy")
 
     if not os.path.exists(save_path):
         audio_path = os.path.join(original_dir, audio)

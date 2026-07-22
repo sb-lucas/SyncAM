@@ -190,10 +190,8 @@ def main():
 
     datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
     #methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP' 'outros amt']
-    
-    methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'Onset-F1']
-#    methods = ['CC-DLNCO', 'CC-SPEC', 'MrMsDTW-DLNCO', 'CLAMP3', 'Onset-F1']
-    #datasets = ['musicnet', 'smd']
+    #methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'Onset-F1']
+    methods = ['CC-SPEC']
 
     cpu_count = os.cpu_count() or 1
     max_workers = max(1, int(cpu_count * 0.8))
@@ -236,7 +234,7 @@ def main():
 
         #aquiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
         #PEGANDO SÓ UM PEDACINHO PRA VER 
-        df = df.head(50)  # Limit to first 10 rows for testing
+        #df = df.head(50)  # Limit to first 10 rows for testing
         #aquiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 
         for method in methods:
@@ -271,7 +269,7 @@ def main():
                     idx, score = future.result()
                     df.loc[idx, method] = score
 
-                        # Save progress after every 500 computations or at the end
+                    # Save progress after every 500 computations or at the end
                     if i % 500 == 0 or i == len(tasks):
                         print(f"    Progress [{method}]: {i}/{len(tasks)} completed.")
                         df.to_csv(results_path, index=False)
