@@ -21,13 +21,7 @@ def get_audio_spectrogram(audio_path, fs=22050, hop_length=64, n_fft=512):
     # 3. Get the magnitude spectrogram (STFT returns complex numbers)
     spectrogram = np.abs(stft_matrix)
     
-    # 4. (Optional but recommended) Convert to Log/Decibel scale
-    # Neural networks and standard distance metrics usually perform better 
-    # on log-scaled amplitudes rather than linear amplitudes.
-    spectrogram_db = librosa.amplitude_to_db(spectrogram, ref=np.max)
-    
-    # Return spectrogram_db if you want the log scale, otherwise return spectrogram
-    return spectrogram_db
+    return spectrogram
 
 def process_audio(audio, original_dir, save_spectrogram_dir):
     """Worker function for a single audio file."""
@@ -75,7 +69,7 @@ def process_audio_folder(input_dir, save_dir, max_workers, description):
 def main():
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
-    datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
+    datasets = ['maestro', 'smd', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet']
 
     cpu_count = os.cpu_count() or 1
     max_workers = max(1, int(cpu_count * 0.8))

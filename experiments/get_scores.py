@@ -19,91 +19,6 @@ from scores.Embedding_Distance_Audio_MIDI_score import Embedding_Distance_Audio_
 from scores.Onset_F_score import Onset_F_score #Onset-F1
 from scores.Onset_Alignment_Error_score import Onset_Alignment_Error_score#Onset-MAE
 
-def process_pair(args):
-    synthesized_midi, corrupt_midi, synthesized_dir, corrupt_dir, score_calculator = args
-
-    synthesized_midi_path = os.path.join(synthesized_dir, synthesized_midi)
-    corrupt_midi_path = os.path.join(corrupt_dir, corrupt_midi)
-
-    song_name = synthesized_midi.split('.')[0]
-    parts = corrupt_midi.split('_')
-
-    corruption_amount = int(parts[-1].split('.')[0]) / 100
-    corruption_type = parts[-2]
-
-    score = score_calculator(synthesized_midi_path, corrupt_midi_path)
-
-    return {
-        "audio": song_name,
-        "midi": corrupt_midi,
-        "corruption_type": corruption_type,
-        "corruption_amount": corruption_amount,
-        "score": score,
-        "label": int(corruption_amount > 0)
-    }
-
-def calculate_scores(self):
-    #calculate scores for all audio-midi pairs in all corruption types and saves in a df for later
-    #calculation of metrics
-
-    #build list of tasks to process in parallel
-    tasks = []
-    for synthesized_midi in os.listdir(self.synthesized_midi_folder):
-        song_name = synthesized_midi.split('.')[0]
-
-        corrupt_midis = [
-            midi for midi in os.listdir(self.corrupt_midi_folder)
-            if midi.startswith(song_name)
-        ]
-
-        for corrupt_midi in corrupt_midis:
-            tasks.append((
-                synthesized_midi,
-                corrupt_midi,
-                self.synthesized_midi_folder,
-                self.corrupt_midi_folder,
-                self.score_calculator
-            ))
-
-    #define the number of workers for parallel processing, using 70% of available CPU cores
-    max_workers = max(1, int(os.cpu_count() * 0.1))
-    #max_workers = 1
-    print(f"Processing {len(tasks)} tasks with {max_workers} workers...")
-
-    #process tasks in parallel and collect results
-    rows = []
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(self.process_pair, task) for task in tasks]
-
-        for i, f in enumerate(as_completed(futures)):
-            try:
-                rows.append(f.result())
-                print(f"{i+1}/{len(tasks)}")
-            except Exception as e:
-                print(f"FAILED {i+1}: {e}")
-
-    df = pd.DataFrame(rows)
-
-    return df
-
-def evaluate_pair(args):
-    """
-    Worker function executed in parallel.
-    Loads feature arrays (or paths) and computes the alignment score for one pair.
-    """
-    idx, audio_path, midi_path, method_name, score_fn = args
-
-    # AMT score functions operating directly on file/MIDI paths
-    if method_name.startswith('AMT'):
-        score = score_fn(audio_path, midi_path)
-    else:
-        # Feature-based functions operating on pre-extracted numpy arrays
-        audio_feature = np.load(audio_path, allow_pickle=True)
-        midi_feature = np.load(midi_path, allow_pickle=True)
-        score = score_fn(audio_feature, midi_feature)
-
-    return idx, float(score)
-
 def get_method_config(method, root_dir):
     """Returns feature folders, score function, and file extensions for a given method."""
     if method == 'CC-CENS':
@@ -179,6 +94,34 @@ def get_method_config(method, root_dir):
     else:
         raise ValueError(f"Unknown method configuration: {method}")
 
+def evaluate_audio_group(args):
+    """
+    Worker function executed in parallel.
+    Loads the audio feature ONCE, then iterates through all associated MIDIs.
+    """
+    audio_path, midi_tasks, method_name, score_fn = args
+    results = []
+
+    # 1. Load Audio Feature ONCE
+    # mmap_mode='r' is a huge speedup for numpy! 
+    # It reads the file virtually without loading the whole thing to RAM at once if not needed.
+    if method_name.startswith('AMT'):
+        pass #for later definition
+    else:
+        audio_feature = np.load(audio_path, mmap_mode='r')
+
+    # 2. Iterate through all corrupted MIDIs for this audio
+    for idx, midi_path in midi_tasks:
+        if method_name.startswith('AMT'):
+            pass #for later definition
+        else:
+            midi_feature = np.load(midi_path, mmap_mode='r')
+            score = score_fn(audio_feature, midi_feature)
+            
+        results.append((idx, float(score)))
+
+    return results
+
 def main():
     load_dotenv()
     
@@ -188,7 +131,8 @@ def main():
     results_folder = os.path.join(EXPERIMENTS_FOLDER, 'results')
     os.makedirs(results_folder, exist_ok=True)
 
-    datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
+    #datasets = ['smd', 'maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet']
+    datasets = ['smd']
     #methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP' 'outros amt']
     #methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'Onset-F1']
     methods = ['CC-SPEC']
@@ -234,7 +178,7 @@ def main():
 
         #aquiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
         #PEGANDO SÓ UM PEDACINHO PRA VER 
-        #df = df.head(50)  # Limit to first 10 rows for testing
+        df = df.head(50)  # Limit to first 10 rows for testing
         #aquiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 
         for method in methods:
@@ -244,37 +188,49 @@ def main():
 
             # Filter rows that haven't been computed yet (resumability)
             uncomputed_mask = df[method].isna()
-            uncomputed_indices = df[uncomputed_mask].index.tolist()
+            uncomputed_df = df.loc[uncomputed_mask]
+            uncomputed_indices = uncomputed_df.index.tolist()
+            grouped = uncomputed_df.groupby('audio')
 
             if len(uncomputed_indices) == 0:
                 print(f" -> Method [{method}]: All rows already computed. Skipping.")
                 continue
 
             print(f" -> Method [{method}]: Computing {len(uncomputed_indices)} pending pairs...")
-
             audio_folder, midi_folder, score_fn, ext = get_method_config(method, root_dir)
-
+            
             tasks = []
-            for idx in uncomputed_indices:
-                row = df.loc[idx]
-                audio_path = os.path.join(audio_folder, f"{row['audio']}{ext}")
-                midi_path = os.path.join(midi_folder, f"{row['corrupt_midi']}{ext}")
-                tasks.append((idx, audio_path, midi_path, method, score_fn))
+            for audio_name, group in grouped:
+                audio_path = os.path.join(audio_folder, f"{audio_name}{ext}")
+                
+                # List of (dataframe_index, midi_path) tuples
+                midi_tasks = [
+                    (idx, os.path.join(midi_folder, f"{row['corrupt_midi']}{ext}"))
+                    for idx, row in group.iterrows()
+                ]
+                
+                tasks.append((audio_path, midi_tasks, method, score_fn))
 
             # Run scoring in parallel
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                futures = [executor.submit(evaluate_pair, task) for task in tasks]
+                futures = [executor.submit(evaluate_audio_group, task) for task in tasks]
 
-                for i, future in enumerate(as_completed(futures), start=1):
-                    idx, score = future.result()
-                    df.loc[idx, method] = score
+                total_completed = 0
+                for future in as_completed(futures):
+                    group_results = future.result()
+                    
+                    # Update dataframe with all results from this audio group
+                    for idx, score in group_results:
+                        df.loc[idx, method] = score
+                        total_completed += 1
 
-                    # Save progress after every 500 computations or at the end
-                    if i % 500 == 0 or i == len(tasks):
-                        print(f"    Progress [{method}]: {i}/{len(tasks)} completed.")
+                    # Save progress periodically (e.g., every 1000 pairs)
+                    if total_completed % 500 == 0 or total_completed == len(uncomputed_indices):
+                        print(f"    Progress [{method}]: {total_completed}/{len(uncomputed_indices)} completed.")
                         df.to_csv(results_path, index=False)
 
     print("\nAll experiment runs completed successfully!")
 
 if __name__ == "__main__":
     main()
+

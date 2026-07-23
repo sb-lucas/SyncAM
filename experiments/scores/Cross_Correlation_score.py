@@ -1,6 +1,6 @@
 import numpy as np
 
-def Cross_Correlation_DLNCO_score(audio_features, midi_features):
+def Cross_Correlation_score(audio_features, midi_features):
     """
     Alignment score WITHOUT allowing time shifts.
     Penalizes onset misalignment.

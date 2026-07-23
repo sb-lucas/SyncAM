@@ -65,7 +65,8 @@ def get_mert_from_audio(file_path, processor, mert_model, device):
             outputs = mert_model(wav_chunk, output_hidden_states=True).hidden_states
             
             # Stack to [Layers(13), Batch(1), Time(T), Hidden(768)]
-            stacked_layers = torch.stack(outputs) 
+            #stacked_layers = torch.stack(outputs) 
+            stacked_layers = torch.stack(outputs[1:]) # [12, 1, T, 768]
             
             # This is the original reduction='mean' logic! Averages across Time (-2)
             # Resulting shape per chunk: [13, 1, 768]
@@ -82,12 +83,6 @@ def get_mert_from_audio(file_path, processor, mert_model, device):
     
     return final_features.cpu().numpy()
 #--------------------------------TO CONVERT MIDI TO MTF------------------------------------#
-def msg_to_str(msg):
-    str_msg = ""
-    for key, value in msg.dict().items():
-        str_msg += " " + str(value)
-    return str_msg.strip().encode('unicode_escape').decode('utf-8')
-
 def get_mtf_from_midi(midi_path, m3_compatible=True):
     """
     Loads a MIDI file and converts it to an MTF (Music Text Format) string in-memory.
@@ -108,8 +103,8 @@ def get_mtf_from_midi(midi_path, m3_compatible=True):
                 continue        
 
         # Convert message dictionary to string
-        str_msg = msg_to_str(msg)
-        msg_list.append(str_msg)
+        #str_msg = msg_to_str(msg)
+        msg_list.append(str(msg))
             
     # MUST be joined by newline (\n) for the tokenizer
     return "\n".join(msg_list)
@@ -171,7 +166,7 @@ def get_embedding(model, file_name, original_dir, save_dir, modality, device, pr
 
         # Chunk and Pad the data
         segment_list = [input_data[i:i+max_input_length] for i in range(0, len(input_data), max_input_length)]
-        segment_list[-1] = input_data[-max_input_length:]
+        #segment_list[-1] = input_data[-max_input_length:]
         
         last_hidden_states_list = []
         
@@ -206,6 +201,7 @@ def get_embedding(model, file_name, original_dir, save_dir, modality, device, pr
 
         states_tensor = torch.concat(last_hidden_states_list, 0) * feature_weights
         final_embedding = states_tensor.sum(dim=0) / feature_weights.sum()
+        final_embedding = torch.nn.functional.normalize(final_embedding, p=2, dim=-1)
         
         np.save(save_path, final_embedding.squeeze().cpu().numpy())
 

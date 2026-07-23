@@ -5,6 +5,7 @@ import librosa as rosa
 from transformers import AutoProcessor, ClapModel
 from dotenv import load_dotenv
 import torch
+import argparse
 
 class HuggingFaceClap:
     def __init__(self, hf_path):
@@ -54,13 +55,18 @@ class HuggingFaceClap:
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset_name",
+        required=True,
+        help="Name of the dataset to use"
+    )
+    args = parser.parse_args()
+
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
-    datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
-
-    cpu_count = os.cpu_count() or 1
-    max_workers = max(1, int(cpu_count * 0.8))
-    print(f"Running on {max_workers} CPU cores.")
+    #datasets = ['smd', 'maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet']
+    datasets = [args.dataset_name]
 
     #----------------------Load the models once--------------------------#
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -86,7 +92,7 @@ def main():
         audio_files = os.listdir(original_audio_dir)
         tam_original = len(audio_files)
         for i, file in enumerate(audio_files):
-            file_name = file.split('.')[0] + ".npy"
+            file_name = os.path.splitext(file)[0] + ".npy"
             save_path = os.path.join(original_audio_clap_dir, file_name)
             
             if os.path.exists(save_path):
@@ -101,8 +107,8 @@ def main():
         audio_files = os.listdir(synthesized_midi_dir)
         tam_corrupt = len(audio_files)
         for i, file in enumerate(audio_files):
+            file_name = os.path.splitext(file)[0] + ".npy"
             save_path = os.path.join(corrupt_midi_clap_dir, file_name)
-            file_name = file.split('.')[0] + ".npy"
             
             if os.path.exists(save_path):
                 print(f"CLAP embedding already exists for {file_name}, skipping.")

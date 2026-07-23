@@ -64,11 +64,11 @@ def process_audio_folder(input_dir, save_dir, max_workers, description):
 def main():
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
-    datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
+    datasets = ['smd', 'maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet']
 
-    #cpu_count = os.cpu_count() or 1
-    #max_workers = max(1, int(cpu_count * 0.5))
-    max_workers = 2
+    cpu_count = os.cpu_count() or 1
+    max_workers = max(1, int(cpu_count * 0.8))
+    #max_workers = 2
     print(f"Running on {max_workers} CPU cores.")
 
     for dataset in datasets:

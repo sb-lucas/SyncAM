@@ -7,3 +7,5 @@
 /maestro
 /maps
 /datasets
+/__pycache__
+*.pyc
