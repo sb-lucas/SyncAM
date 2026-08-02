@@ -55,17 +55,27 @@ class HuggingFaceClap:
 
 
 def main():
+    # ----------------------------- Argparse Setup ---------------------------------- #
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--dataset_name",
         required=True,
         help="Name of the dataset to use"
     )
+    parser.add_argument(
+        "--original",
+        action="store_true",
+        help="Extract only from the original data."
+    )
     args = parser.parse_args()
-
+    # ----------------------------- Environment & Config ---------------------------------- #
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
-    #datasets = ['smd', 'maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet']
+    #if args.original:
+        #datasets = ['maestro', 'smd', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
+    #else:
+        #datasets = ['maestro', 'smd', 'maps_synth']
+
     datasets = [args.dataset_name]
 
     #----------------------Load the models once--------------------------#
@@ -79,11 +89,16 @@ def main():
         print(f"\nProcessing: {dataset}")
 
         root_dir = os.path.join(DATASETS_FOLDER, dataset)
-        synthesized_midi_dir = os.path.join(root_dir, "synthesized_midi")
         original_audio_dir = os.path.join(root_dir, "audios")
-
-        corrupt_midi_clap_dir = os.path.join(root_dir, "corrupt_midi_clap")
         original_audio_clap_dir = os.path.join(root_dir, "audios_clap")
+
+        if args.original:
+            synthesized_midi_dir = os.path.join(root_dir, "synthesized_original_midi")
+            corrupt_midi_clap_dir = os.path.join(root_dir, "original_midi_clap")
+        else:
+            synthesized_midi_dir = os.path.join(root_dir, "synthesized_midi")
+            corrupt_midi_clap_dir = os.path.join(root_dir, "corrupt_midi_clap")
+                
 
         os.makedirs(corrupt_midi_clap_dir, exist_ok=True)
         os.makedirs(original_audio_clap_dir, exist_ok=True)

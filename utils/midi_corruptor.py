@@ -107,9 +107,8 @@ def apply_corruptions(midi_filename, input_path, save_folder):
         pitch_path = os.path.join(save_folder, f'{file_name}_pitch_{CA_percentage}.mid')
         add_remove_path = os.path.join(save_folder, f'{file_name}_addRemove_{CA_percentage}.mid')
         onset_path = os.path.join(save_folder, f'{file_name}_onset_{CA_percentage}.mid')
-        all_path = os.path.join(save_folder, f'{file_name}_all_{CA_percentage}.mid')
 
-        if os.path.exists(pitch_path) and os.path.exists(add_remove_path) and os.path.exists(onset_path) and os.path.exists(all_path):
+        if os.path.exists(pitch_path) and os.path.exists(add_remove_path) and os.path.exists(onset_path):
             print(f'Skipping {file_name} for CA: {CA_percentage} as all corrupted files already exist.')
             continue
         
@@ -132,12 +131,6 @@ def apply_corruptions(midi_filename, input_path, save_folder):
         onset_midi = onset_corruption(copy.deepcopy(midi), shift_amount)
         onset_midi.write(onset_path)
 
-        # 4. All corruptions combined
-        all_corruptions_midi = pitch_swap(copy.deepcopy(midi), num_corrupt_notes)
-        all_corruptions_midi = add_remove(all_corruptions_midi, num_corrupt_notes*2)
-        all_corruptions_midi = onset_corruption(all_corruptions_midi, shift_amount)
-        all_corruptions_midi.write(all_path)
-
 def main():
 
     #we expect a folder of the original dataset
@@ -150,8 +143,7 @@ def main():
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
     SOUNDFONT_PATH = os.environ["SOUNDFONT_PATH"]
-    datasets = ['maestro']
-    #datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
+    datasets = ['maestro', 'smd', 'maps_synth']
 
     for dataset in datasets:
         print(f'Processing dataset: {dataset}')

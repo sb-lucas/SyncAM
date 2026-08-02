@@ -1,10 +1,11 @@
+import argparse
+
 import librosa
 import numpy as np
 import matplotlib.pyplot as plt
 from IPython.display import Audio
 import pretty_midi
 import os
-import random
 import pandas as pd
 from tempfile import TemporaryDirectory
 import pretty_midi
@@ -127,21 +128,36 @@ def render_dataset(midi_dir, save_dir, soundfont_path, max_workers):
 
 
 def main():
-    random.seed(42)
-
+    # ----------------------------- Argparse Setup ---------------------------------- #
+    parser = argparse.ArgumentParser(description="Batch Audio Transcription Pipeline")
+    parser.add_argument(
+        "--original",
+        action="store_true",
+        help="Extract only from the original data."
+    )
+    args = parser.parse_args()
+    # ----------------------------- Environment & Config ---------------------------------- #
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
     SOUNDFONT_PATH = os.environ["SOUNDFONT_PATH"]
-    datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
+    if args.original:
+        datasets = ['maestro', 'smd', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
+    else:
+        datasets = ['maestro', 'smd', 'maps_synth']
 
+    #----------------------------- Rendering MIDI to Audio ---------------------------------- #
     max_workers = int(os.cpu_count() * 0.8)
     print(f"Using {max_workers} workers for rendering")
 
     for dataset in datasets:
         print(f"\nProcessing: {dataset}")
 
-        midi_dir = os.path.join(DATASETS_FOLDER, dataset, "corrupt_midi")
-        save_dir = os.path.join(DATASETS_FOLDER, dataset, "synthesized_midi")
+        if args.original:
+            midi_dir = os.path.join(DATASETS_FOLDER, dataset, "midis")
+            save_dir = os.path.join(DATASETS_FOLDER, dataset, "synthesized_original_midi")
+        else:
+            midi_dir = os.path.join(DATASETS_FOLDER, dataset, "corrupt_midi")
+            save_dir = os.path.join(DATASETS_FOLDER, dataset, "synthesized_midi")
 
         render_dataset(midi_dir=midi_dir, save_dir=save_dir, soundfont_path=SOUNDFONT_PATH, max_workers=max_workers)
 

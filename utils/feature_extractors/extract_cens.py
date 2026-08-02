@@ -4,6 +4,7 @@ import pretty_midi
 import os
 import soundfile as sf
 from dotenv import load_dotenv
+import argparse
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -17,7 +18,6 @@ def extract_cens_audio(audio_file, original_dir, save_dir, sr=22050, hop_length=
     if os.path.exists(save_path):
         return "SKIPPED (exists): " + audio_file
 
-    print(f"Processing: {audio_file}")
     audio_path = os.path.join(original_dir, audio_file)
     y, sr = librosa.load(audio_path, sr=sr)
 
@@ -62,12 +62,26 @@ def process_audio_folder(input_dir, save_dir, max_workers, description):
 
 
 def main():
+    # ----------------------------- Argparse Setup ---------------------------------- #
+    parser = argparse.ArgumentParser(description="Batch Audio Transcription Pipeline")
+    parser.add_argument(
+        "--original",
+        action="store_true",
+        help="Extract only from the original data."
+    )
+    args = parser.parse_args()
+    # ----------------------------- Environment & Config ---------------------------------- #
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
-    datasets = ['smd', 'maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet']
+    if args.original:
+        datasets = ['maestro', 'smd', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
+    else:
+        datasets = ['maestro', 'smd', 'maps_synth']
+
+    #----------------------------- Process Features ---------------------------------- #
 
     cpu_count = os.cpu_count() or 1
-    max_workers = max(1, int(cpu_count * 0.8))
+    max_workers = max(1, int(cpu_count * 0.6))
     #max_workers = 2
     print(f"Running on {max_workers} CPU cores.")
 
@@ -75,11 +89,15 @@ def main():
         print(f"\nProcessing: {dataset}")
 
         root_dir = os.path.join(DATASETS_FOLDER, dataset)
-        synthesized_midi_dir = os.path.join(root_dir, "synthesized_midi")
         original_audio_dir = os.path.join(root_dir, "audios")
-
-        corrupt_midi_cens_dir = os.path.join(root_dir, "corrupt_midi_cens")
         original_audio_cens_dir = os.path.join(root_dir, "audios_cens")
+
+        if args.original:
+            synthesized_midi_dir = os.path.join(root_dir, "synthesized_original_midi")
+            corrupt_midi_cens_dir = os.path.join(root_dir, "original_midi_cens")
+        else:
+            synthesized_midi_dir = os.path.join(root_dir, "synthesized_midi")
+            corrupt_midi_cens_dir = os.path.join(root_dir, "corrupt_midi_cens")
         
         # -------------------------
         # 1. Original audio
@@ -101,8 +119,5 @@ def main():
             description="Corrupt MIDI audio CENS",
         )
     
-        
-
-
 if __name__ == "__main__":
     main()

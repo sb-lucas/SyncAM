@@ -1,9 +1,9 @@
 import numpy as np
+#import torch
 
 def Cross_Correlation_score(audio_features, midi_features):
     """
-    Alignment score WITHOUT allowing time shifts.
-    Penalizes onset misalignment.
+    Computes the cross-correlation between two sets of features.
 
     Args:
         audio_features: (F, T1)
@@ -32,6 +32,6 @@ def Cross_Correlation_score(audio_features, midi_features):
     # --- cosine similarity across all frames ---
     corr = np.mean(np.sum(S1 * S2, axis=0))
 
-    assert corr <= 1 and corr >= 0, f"Warning: precisa reescalar: {corr}"
+    assert corr <= 1 and corr >= 0, f"Warning: need to rescale: {corr}"
 
     return float(np.clip(corr, 0.0, 1.0))

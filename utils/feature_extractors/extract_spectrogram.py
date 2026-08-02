@@ -6,6 +6,7 @@ from synctoolbox.feature.pitch_onset import audio_to_pitch_onset_features
 from synctoolbox.feature.dlnco import pitch_onset_features_to_DLNCO
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dotenv import load_dotenv
+import argparse
 
 
 def get_audio_spectrogram(audio_path, fs=22050, hop_length=64, n_fft=512):
@@ -67,10 +68,23 @@ def process_audio_folder(input_dir, save_dir, max_workers, description):
 
 
 def main():
+    # ----------------------------- Argparse Setup ---------------------------------- #
+    parser = argparse.ArgumentParser(description="Batch Audio Transcription Pipeline")
+    parser.add_argument(
+        "--original",
+        action="store_true",
+        help="Extract only from the original data."
+    )
+    args = parser.parse_args()
+    # ----------------------------- Environment & Config ---------------------------------- #
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
-    datasets = ['maestro', 'smd', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet']
+    if args.original:
+        datasets = ['maestro', 'smd', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
+    else:
+        datasets = ['maestro', 'smd', 'maps_synth']
 
+    #----------------------------- Process Features ---------------------------------- #
     cpu_count = os.cpu_count() or 1
     max_workers = max(1, int(cpu_count * 0.8))
     print(f"Running on {max_workers} CPU cores.")
@@ -79,11 +93,16 @@ def main():
         print(f"\nProcessing: {dataset}")
 
         root_dir = os.path.join(DATASETS_FOLDER, dataset)
-        synthesized_midi_dir = os.path.join(root_dir, "synthesized_midi")
-        original_audio_dir = os.path.join(root_dir, "audios")
 
-        corrupt_midi_spectrogram_dir = os.path.join(root_dir, "corrupt_midi_spectrogram")
+        original_audio_dir = os.path.join(root_dir, "audios")
         original_audio_spectrogram_dir = os.path.join(root_dir, "audios_spectrogram")
+
+        if args.original:
+            synthesized_midi_dir = os.path.join(root_dir, "synthesized_original_midi")
+            corrupt_midi_spectrogram_dir = os.path.join(root_dir, "original_midi_spectrogram")
+        else:
+            synthesized_midi_dir = os.path.join(root_dir, "synthesized_midi")
+            corrupt_midi_spectrogram_dir = os.path.join(root_dir, "corrupt_midi_spectrogram")
         
         # -------------------------
         # 1. Original audio

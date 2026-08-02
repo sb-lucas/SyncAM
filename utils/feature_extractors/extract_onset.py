@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import pretty_midi
 import mir_eval
@@ -112,10 +113,23 @@ def run_parallel(files, worker_function, worker_args, max_workers, description, 
             print(f"{description}: "f"{i}/{total} | {result}")
 
 def main():
+    # ----------------------------- Argparse Setup ---------------------------------- #
+    parser = argparse.ArgumentParser(description="Batch Audio Transcription Pipeline")
+    parser.add_argument(
+        "--original",
+        action="store_true",
+        help="Extract only from the original data."
+    )
+    args = parser.parse_args()
+    # ----------------------------- Environment & Config ---------------------------------- #
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
-    datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
+    if args.original:
+        datasets = ['maestro', 'smd', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
+    else:
+        datasets = ['maestro', 'smd', 'maps_synth']
 
+    #----------------------------- Process Features ---------------------------------- #
     cpu_count = os.cpu_count() or 1
     max_workers = max(1, int(cpu_count * 0.8))
     print(f"Running on {max_workers} CPU cores.")
@@ -124,11 +138,16 @@ def main():
         print(f"\nProcessing: {dataset}")
 
         root_dir = os.path.join(DATASETS_FOLDER, dataset)
-        corrupt_midi_dir = os.path.join(root_dir, "corrupt_midi")
         original_audio_dir = os.path.join(root_dir, "audios")
-
-        corrupt_midi_onsets_dir = os.path.join(root_dir, "corrupt_midi_onsets")
         original_audio_onsets_dir = os.path.join(root_dir, "audios_onsets")
+
+        if args.original:
+            corrupt_midi_dir = os.path.join(root_dir, "midis")
+            corrupt_midi_onsets_dir = os.path.join(root_dir, "original_midi_onsets")
+        else:
+            corrupt_midi_dir = os.path.join(root_dir, "corrupt_midi")
+            corrupt_midi_onsets_dir = os.path.join(root_dir, "corrupt_midi_onsets")
+        
         os.makedirs(corrupt_midi_onsets_dir, exist_ok=True)
         os.makedirs(original_audio_onsets_dir, exist_ok=True)
 

@@ -1,23 +1,21 @@
-import soundfile as sf
 import numpy as np
 import pandas as pd
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import numpy as np
 from dotenv import load_dotenv
 
-from scores.Cross_Correlation_CENS_score import Cross_Correlation_CENS_score #CC-CENS
-from scores.Cross_Correlation_DLNCO_score import Cross_Correlation_DLNCO_score #CC-DLNCO
-from scores.Cross_Correlation_Spectrogram_score import Cross_Correlation_Spectrogram_score #CC-SPEC
+from scores.Cross_Correlation_score import Cross_Correlation_score #CC-SPEC, CC-CENS, CC-DLNCO
 
-from scores.DTW_MrMs_CENS_score import DTW_MrMs_CENS_score #MrMsDTW-CENS
-from scores.DTW_MrMs_DLNCO_score import DTW_MrMs_DLNCO_score #MrMsDTW-DLNCO
+from scores.MrMsDTW_score import MrMsDTW_score #MrMsDTW-CENS, MrMsDTW-DLNCO
 
-from scores.Embedding_Distance_Audio_Audio_score import Embedding_Distance_Audio_Audio_score #CLAP
-from scores.Embedding_Distance_Audio_MIDI_score import Embedding_Distance_Audio_MIDI_score #CLAMP3
+from scores.Embedding_Distance_score import Embedding_Distance_score #CLAMP3, CLAP
 
 from scores.Onset_F_score import Onset_F_score #Onset-F1
-from scores.Onset_Alignment_Error_score import Onset_Alignment_Error_score#Onset-MAE
+from scores.Onset_Alignment_Error_score import Onset_Alignment_Error_score #Onset-MAE
+
+from scores.Transcription_score import Transcription_score #AMT-BP, AMT-BD, AMT-TK
+from scores.Transcription_IOI_score import Transcription_IOI_score #AMT-IOI
+
 
 def get_method_config(method, root_dir):
     """Returns feature folders, score function, and file extensions for a given method."""
@@ -25,49 +23,49 @@ def get_method_config(method, root_dir):
         return (
             os.path.join(root_dir, "audios_cens"),
             os.path.join(root_dir, "corrupt_midi_cens"),
-            Cross_Correlation_CENS_score,
+            Cross_Correlation_score,
             '.npy'
         )
     elif method == 'CC-DLNCO':
         return (
             os.path.join(root_dir, "audios_dlnco"),
             os.path.join(root_dir, "corrupt_midi_dlnco"),
-            Cross_Correlation_DLNCO_score,
+            Cross_Correlation_score,
             '.npy'
         )
     elif method == 'CC-SPEC':
         return (
             os.path.join(root_dir, "audios_spectrogram"),
             os.path.join(root_dir, "corrupt_midi_spectrogram"),
-            Cross_Correlation_Spectrogram_score,
+            Cross_Correlation_score,
             '.npy'
         )
     elif method == 'MrMsDTW-CENS':
         return (
             os.path.join(root_dir, "audios_cens"),
             os.path.join(root_dir, "corrupt_midi_cens"),
-            DTW_MrMs_CENS_score,
+            MrMsDTW_score,
             '.npy'
         )
     elif method == 'MrMsDTW-DLNCO':
         return (
             os.path.join(root_dir, "audios_dlnco"),
             os.path.join(root_dir, "corrupt_midi_dlnco"),
-            DTW_MrMs_DLNCO_score,
+            MrMsDTW_score,
             '.npy'
         )
     elif method == 'CLAMP3':
         return (
             os.path.join(root_dir, "audios_clamp"),
             os.path.join(root_dir, "corrupt_midi_clamp"),
-            Embedding_Distance_Audio_MIDI_score,
+            Embedding_Distance_score,
             '.npy'
         )
     elif method == 'CLAP':
         return (
             os.path.join(root_dir, "audios_clap"),
             os.path.join(root_dir, "corrupt_midi_clap"),
-            Embedding_Distance_Audio_Audio_score,
+            Embedding_Distance_score,
             '.npy'
         )
     elif method == 'Onset-F1':
@@ -88,7 +86,42 @@ def get_method_config(method, root_dir):
         return (
             os.path.join(root_dir, "audios_transcribed_bp"),
             os.path.join(root_dir, "corrupt_midi"),
-            Onset_Alignment_Error_score,
+            Transcription_score,
+            '.mid',
+        )
+    elif method == 'AMT-BD':
+        return (
+            os.path.join(root_dir, "audios_transcribed_bd"),
+            os.path.join(root_dir, "corrupt_midi"),
+            Transcription_score,
+            '.mid',
+        )
+    elif method == 'AMT-TK':
+        return (
+            os.path.join(root_dir, "audios_transcribed_tk"),
+            os.path.join(root_dir, "corrupt_midi"),
+            Transcription_score,
+            '.mid',
+        )
+    elif method == 'AMT-IOI-BP':
+        return (
+            os.path.join(root_dir, "audios_transcribed_bp"),
+            os.path.join(root_dir, "corrupt_midi"),
+            Transcription_IOI_score,
+            '.mid',
+        )
+    elif method == 'AMT-IOI-BD':
+        return (
+            os.path.join(root_dir, "audios_transcribed_bd"),
+            os.path.join(root_dir, "corrupt_midi"),
+            Transcription_IOI_score,
+            '.mid',
+        )
+    elif method == 'AMT-IOI-TK':
+        return (
+            os.path.join(root_dir, "audios_transcribed_tk"),
+            os.path.join(root_dir, "corrupt_midi"),
+            Transcription_IOI_score,
             '.mid',
         )
     else:
@@ -106,20 +139,23 @@ def evaluate_audio_group(args):
     # mmap_mode='r' is a huge speedup for numpy! 
     # It reads the file virtually without loading the whole thing to RAM at once if not needed.
     if method_name.startswith('AMT'):
-        pass #for later definition
+        # For AMT methods, we need to load the MIDI file as a PrettyMIDI object
+        audio_feature = audio_path  # Just pass the path; the scoring function will handle loading
     else:
         audio_feature = np.load(audio_path, mmap_mode='r')
 
     # 2. Iterate through all corrupted MIDIs for this audio
-    for idx, midi_path in midi_tasks:
-        if method_name.startswith('AMT'):
-            pass #for later definition
-        else:
-            midi_feature = np.load(midi_path, mmap_mode='r')
+    if method_name.startswith('AMT'):
+        for idx, path in midi_tasks:
+            midi_feature = path # Just pass the path; the scoring function will handle loading
             score = score_fn(audio_feature, midi_feature)
-            
-        results.append((idx, float(score)))
-
+            results.append((idx, float(score)))
+    else: 
+        for idx, path in midi_tasks:
+            midi_feature = np.load(path, mmap_mode='r')
+            score = score_fn(audio_feature, midi_feature)
+            results.append((idx, float(score)))
+    
     return results
 
 def main():
@@ -131,14 +167,11 @@ def main():
     results_folder = os.path.join(EXPERIMENTS_FOLDER, 'results')
     os.makedirs(results_folder, exist_ok=True)
 
-    #datasets = ['smd', 'maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet']
-    datasets = ['smd']
-    #methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP' 'outros amt']
-    #methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'Onset-F1']
-    methods = ['CC-SPEC']
+    datasets = ['smd', 'maestro', 'maps_synth']
+    methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP', 'AMT-BD', 'AMT-TK', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
 
     cpu_count = os.cpu_count() or 1
-    max_workers = max(1, int(cpu_count * 0.8))
+    max_workers = max(1, int(cpu_count * 0.2))
     print(f"Running on {max_workers} CPU cores.")
 
     for dataset in datasets:
@@ -175,12 +208,6 @@ def main():
             df.to_csv(results_path, index=False)
             
         # 2. Iterate through each method and compute scores
-
-        #aquiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
-        #PEGANDO SÓ UM PEDACINHO PRA VER 
-        df = df.head(50)  # Limit to first 10 rows for testing
-        #aquiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
-
         for method in methods:
             # Initialize method column if missing
             if method not in df.columns:
@@ -215,18 +242,20 @@ def main():
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 futures = [executor.submit(evaluate_audio_group, task) for task in tasks]
 
-                total_completed = 0
+                total_audio_groups = len(tasks)
+                completed_groups = 0
                 for future in as_completed(futures):
                     group_results = future.result()
                     
                     # Update dataframe with all results from this audio group
                     for idx, score in group_results:
                         df.loc[idx, method] = score
-                        total_completed += 1
 
-                    # Save progress periodically (e.g., every 1000 pairs)
-                    if total_completed % 500 == 0 or total_completed == len(uncomputed_indices):
-                        print(f"    Progress [{method}]: {total_completed}/{len(uncomputed_indices)} completed.")
+                    completed_groups += 1
+
+                    # Save progress periodically (e.g., every 440 pairs)
+                    if completed_groups % 10 == 0 or completed_groups == total_audio_groups:
+                        print(f"    Progress [{method}]: {completed_groups}/{total_audio_groups} completed.")
                         df.to_csv(results_path, index=False)
 
     print("\nAll experiment runs completed successfully!")

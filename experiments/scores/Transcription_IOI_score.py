@@ -8,12 +8,12 @@ import librosa
 from scipy.ndimage import gaussian_filter1d
 
 
-def get_ioi_notes_from_midi(midi_file):
+def get_ioi_notes_from_midi(midi_path):
     """
     Extracts [onset, pitch, IOI] from a MIDI file.
     IOI is the time since the last onset of the SAME pitch.
     """
-    midi_data = pretty_midi.PrettyMIDI(midi_file)
+    midi_data = pretty_midi.PrettyMIDI(midi_path)
     
     # Group by pitch first to calculate isolated IOIs
     pitch_dict = {}
@@ -38,16 +38,11 @@ def get_ioi_notes_from_midi(midi_file):
     notes = sorted(notes, key=lambda x: x[0])
     return np.array(notes)
 
-def Onset_IOI_Pitch_Alignment_Score(audio_path, midi_path, tau=0.1):
+def Transcription_IOI_score(audio_transcribed_midi_path, midi_path, tau=0.05):
     #Computes a 2D alignment score between two MIDI files using Pitch and Time.
     
-    #Load transcribed midi 
-    root_folder = '/'.join(audio_path.split('/')[:-2])
-    audio_file = audio_path.split('/')[-1].split('.')[0]
-    trans_midi = f'{root_folder}/synthesized_midi_transcribed/{audio_file}.mid'
-
     ref_notes = get_ioi_notes_from_midi(midi_path)
-    est_notes = get_ioi_notes_from_midi(trans_midi)
+    est_notes = get_ioi_notes_from_midi(audio_transcribed_midi_path)
 
     if len(ref_notes) == 0 or len(est_notes) == 0:
         return 0.0

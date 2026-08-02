@@ -1,5 +1,4 @@
 import numpy as np
-import pretty_midi
 import mir_eval
 
 

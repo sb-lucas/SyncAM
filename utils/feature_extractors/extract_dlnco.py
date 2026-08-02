@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import librosa
 import pretty_midi
@@ -7,8 +8,8 @@ from synctoolbox.feature.dlnco import pitch_onset_features_to_DLNCO
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dotenv import load_dotenv
 
-def get_audio_dlnco(audio_path, fs=22050, feature_rate=344):
-    # Since hop_length = 64 (~3 ms at 22.05 kHz), we set feature_rate = fs / hop_length (~344 Hz) to match the same time resolution
+def get_audio_dlnco(audio_path, fs=22050, feature_rate=22050/64):
+    # Since hop_length = 64 (~3 ms at 22.05 kHz), we set feature_rate = fs / hop_length (~344.53 Hz) to match the same time resolution
 
     """Extracts DLNCO features from an audio file."""
     # 1. Load audio (mixdown to mono)
@@ -30,8 +31,8 @@ def get_audio_dlnco(audio_path, fs=22050, feature_rate=344):
     
     return dlnco
 
-def get_midi_dlnco(midi_path, duration_sec=None, feature_rate=344):
-    # Since hop_length = 64 (~3 ms at 22.05 kHz), we set feature_rate = fs / hop_length (~344 Hz) to match the same time resolution
+def get_midi_dlnco(midi_path, duration_sec=None, feature_rate=22050/64):
+    # Since hop_length = 64 (~3 ms at 22.05 kHz), we set feature_rate = fs / hop_length (~344.53 Hz) to match the same time resolution
 
     """Extracts DLNCO features directly from a MIDI file."""
     midi_data = pretty_midi.PrettyMIDI(midi_path)
@@ -87,13 +88,13 @@ def get_midi_dlnco(midi_path, duration_sec=None, feature_rate=344):
     
     return dlnco
 
-def process_audio(audio, synthesized_midi_dir, synthesized_midi_dlnco_dir):
+def process_audio(audio, audio_dir, audio_dlnco_dir):
     """Worker function for a single audio file."""
-    file_extension = ".wav" if audio.endswith(".wav") else ".mp3"
-    save_path = os.path.join(synthesized_midi_dlnco_dir, audio.replace(file_extension, ".npy"))
+    basename = os.path.splitext(audio)[0]
+    save_path = os.path.join(audio_dlnco_dir, basename + ".npy")
 
     if not os.path.exists(save_path):
-        audio_path = os.path.join(synthesized_midi_dir, audio)
+        audio_path = os.path.join(audio_dir, audio)
         dlnco = get_audio_dlnco(audio_path)
         np.save(save_path, dlnco)
 
@@ -101,8 +102,8 @@ def process_audio(audio, synthesized_midi_dir, synthesized_midi_dlnco_dir):
 
 def process_midi(midi, corrupt_midi_dir, corrupt_midi_dlnco_dir):
     """Worker function for a single MIDI file."""
-    file_extension = ".mid" if midi.endswith(".mid") else ".midi"
-    dlnco_save_path = os.path.join(corrupt_midi_dlnco_dir, midi.replace(file_extension, ".npy"))
+    basename = os.path.splitext(midi)[0]
+    dlnco_save_path = os.path.join(corrupt_midi_dlnco_dir, basename + ".npy")
 
     if not os.path.exists(dlnco_save_path):
         midi_path = os.path.join(corrupt_midi_dir, midi)
@@ -129,9 +130,23 @@ def run_parallel(files, worker_function, worker_args, max_workers, description, 
             print(f"{description}: "f"{i}/{total} | {result}")
 
 def main():
+    # ----------------------------- Argparse Setup ---------------------------------- #
+    parser = argparse.ArgumentParser(description="Batch Audio Transcription Pipeline")
+    parser.add_argument(
+        "--original",
+        action="store_true",
+        help="Extract only from the original data."
+    )
+    args = parser.parse_args()
+    # ----------------------------- Environment & Config ---------------------------------- #
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
-    datasets = ['maestro', 'maps/ENSTDkAm', 'maps/ENSTDkCl', 'musicnet', 'smd']
+    if args.original:
+        datasets = ['maestro', 'smd', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
+    else:
+        datasets = ['maestro', 'smd', 'maps_synth']
+
+    #----------------------------- Process Features ---------------------------------- #
 
     cpu_count = os.cpu_count() or 1
     max_workers = max(1, int(cpu_count * 0.8))
@@ -141,11 +156,16 @@ def main():
         print(f"\nProcessing: {dataset}")
 
         root_dir = os.path.join(DATASETS_FOLDER, dataset)
-        corrupt_midi_dir = os.path.join(root_dir, "corrupt_midi")
         original_audio_dir = os.path.join(root_dir, "audios")
-
-        corrupt_midi_dlnco_dir = os.path.join(root_dir, "corrupt_midi_dlnco")
         original_audio_dlnco_dir = os.path.join(root_dir, "audios_dlnco")
+
+        if args.original:
+            corrupt_midi_dir = os.path.join(root_dir, "midis")
+            corrupt_midi_dlnco_dir = os.path.join(root_dir, "original_midi_dlnco")
+        else:
+            corrupt_midi_dir = os.path.join(root_dir, "corrupt_midi")
+            corrupt_midi_dlnco_dir = os.path.join(root_dir, "corrupt_midi_dlnco")
+
         os.makedirs(corrupt_midi_dlnco_dir, exist_ok=True)
         os.makedirs(original_audio_dlnco_dir, exist_ok=True)
         
