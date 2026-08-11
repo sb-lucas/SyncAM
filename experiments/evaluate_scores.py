@@ -98,7 +98,7 @@ def _compute_consistency(df, score_cols):
         corr_type = g['corruption_type'].iloc[0]
         S = g['corruption_amount'].values
         
-        # Applies quadratic mapping for 'onset', 'onset_fine', and 'onset_coarse'
+        # Applies quadratic mapping for 'onset'
         x = S**2 if 'onset' in str(corr_type).lower() else S
         
         res = {}
@@ -221,7 +221,6 @@ def get_onset_comparison(df, score_cols,dataset='maps_synth'):
 
     # 2. Split into fine-grained (S <= 30 ms) and coarse-grained (S >= 40 ms)
     df_fine = df_smd[df_smd['corruption_amount'].round(2) <= 30].copy()
-    df_fine['corruption_type'] = 'onset_fine'
 
     # 3. Filter for requested methods
     available_methods = [m for m in score_cols if m in df_fine.columns]
@@ -243,7 +242,7 @@ def get_onset_comparison(df, score_cols,dataset='maps_synth'):
     combined = pd.concat(eval_dict, names=['eval_metric', 'corruption_type'])
     final_df = combined.T.swaplevel(0, 1, axis=1)
 
-    corr_order = ['onset_fine']
+    corr_order = ['onset']
     eval_order = ['Mono', 'Stab', 'Sens', 'Cons']
 
     multi_cols = pd.MultiIndex.from_product(
@@ -251,6 +250,63 @@ def get_onset_comparison(df, score_cols,dataset='maps_synth'):
         names=['granularity', 'eval_metric']
     )
 
+    final_df = final_df.reindex(columns=multi_cols)
+    final_df.index.name = 'metric'
+
+    return final_df
+
+
+#onset fine grained, 4 metrics, all datasets
+def calculate_onset_fine_by_dataset(df, score_cols):
+    """
+    Computes all four evaluation metrics (Mono, Stab, Sens, Cons) for 
+    Fine-Grained Onset corruption (S <= 30 ms), broken down per dataset.
+    
+    Returns:
+      - final_df: MultiIndex DataFrame indexed by scoring metric with columns 
+        (dataset, eval_metric)
+    """
+    # Filter for 'onset' corruption type and fine-grained severity (S <= 30)
+    is_onset = df['corruption_type'].astype(str).str.lower() == 'onset'
+    is_fine = df['corruption_amount'].round(2) <= 30
+    df_fine = df[is_onset & is_fine].copy()
+
+    datasets = df_fine['dataset'].unique()
+    eval_order = ['Mono', 'Stab', 'Sens', 'Cons']
+    dataset_tables = {}
+
+    # Compute 4 evaluation metrics for each dataset
+    for ds in datasets:
+        df_ds = df_fine[df_fine['dataset'] == ds]
+        if df_ds.empty:
+            continue
+
+        available_methods = [m for m in score_cols if m in df_ds.columns]
+
+        mono = _compute_monotonicity(df_ds, available_methods)
+        stab = _compute_stability(df_ds, available_methods)
+        sens = _compute_sensitivity(df_ds, available_methods)
+        cons = _compute_consistency(df_ds, available_methods)
+
+        # Transpose & combine so rows = scoring methods, columns = eval metrics
+        ds_metrics = pd.DataFrame({
+            'Mono': mono.loc['onset'],
+            'Stab': stab.loc['onset'],
+            'Sens': sens.loc['onset'],
+            'Cons': cons.loc['onset']
+        })
+
+        dataset_tables[ds] = ds_metrics
+
+    # 4. Combine into a single wide MultiIndex DataFrame
+    final_df = pd.concat(dataset_tables, axis=1, names=['dataset', 'eval_metric'])
+
+    # 5. Enforce clean column order
+    multi_cols = pd.MultiIndex.from_product(
+        [datasets, eval_order], 
+        names=['dataset', 'eval_metric']
+    )
+    
     final_df = final_df.reindex(columns=multi_cols)
     final_df.index.name = 'metric'
 
@@ -274,19 +330,25 @@ def main():
     #drop rows with 'all' corruption type
     df.drop(df[df['corruption_type'] == 'all'].index, inplace=True)
 
-    methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP', 'AMT-BD', 'AMT-TK', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
+    methods = ['CS-CENS', 'CS-DLNCO', 'CS-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP', 'AMT-BD', 'AMT-TK', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
 
     #mean and std of each scoring method
-    get_baseline_summary(df, methods).to_csv(os.path.join(results_path, 'table_baseline_summary.csv'))
+    #get_baseline_summary(df, methods).to_csv(os.path.join(results_path, 'table_baseline_summary.csv'))
 
     #big main table
     calculate_all_metrics(df, methods).to_csv(os.path.join(results_path, 'table_main.csv'))
 
+    #onset fine grained, 4 metrics, all datasets
+    calculate_onset_fine_by_dataset(df, methods).to_csv(os.path.join(results_path, 'table_onset_fine_per_dataset.csv'))
+
     #monotonicity per dataset table
-    calculate_monotonicity_by_dataset(df, methods).to_csv(os.path.join(results_path, 'table_per_dataset.csv'))
+    #calculate_monotonicity_by_dataset(df, methods).to_csv(os.path.join(results_path, 'table_per_dataset.csv'))
 
     #onset fine grained X coarse grained for maps table
-    get_onset_comparison(df, methods, dataset='maps_synth').to_csv(os.path.join(results_path, 'table_onset_fine.csv'))
+    #dataset = 'maps-s'
+    #get_onset_comparison(df, methods, dataset=dataset).to_csv(os.path.join(results_path, f'table_onset_fine_{dataset}.csv'))
+
+
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dotenv import load_dotenv
 
-from scores.Cross_Correlation_score import Cross_Correlation_score #CC-SPEC, CC-CENS, CC-DLNCO
+from scores.Cosine_Similarity_score import Cosine_Similarity_score #CS-SPEC, CS-CENS, CS-DLNCO
 
 from scores.MrMsDTW_score import MrMsDTW_score #MrMsDTW-CENS, MrMsDTW-DLNCO
 
@@ -19,25 +19,25 @@ from scores.Transcription_IOI_score import Transcription_IOI_score #AMT-IOI
 
 def get_method_config(method, root_dir):
     """Returns feature folders, score function, and file extensions for a given method."""
-    if method == 'CC-CENS':
+    if method == 'CS-CENS':
         return (
             os.path.join(root_dir, "audios_cens"),
             os.path.join(root_dir, "corrupt_midi_cens"),
-            Cross_Correlation_score,
+            Cosine_Similarity_score,
             '.npy'
         )
-    elif method == 'CC-DLNCO':
+    elif method == 'CS-DLNCO':
         return (
             os.path.join(root_dir, "audios_dlnco"),
             os.path.join(root_dir, "corrupt_midi_dlnco"),
-            Cross_Correlation_score,
+            Cosine_Similarity_score,
             '.npy'
         )
-    elif method == 'CC-SPEC':
+    elif method == 'CS-SPEC':
         return (
             os.path.join(root_dir, "audios_spectrogram"),
             os.path.join(root_dir, "corrupt_midi_spectrogram"),
-            Cross_Correlation_score,
+            Cosine_Similarity_score,
             '.npy'
         )
     elif method == 'MrMsDTW-CENS':
@@ -168,7 +168,7 @@ def main():
     os.makedirs(results_folder, exist_ok=True)
 
     datasets = ['smd', 'maestro', 'maps_synth']
-    methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP', 'AMT-BD', 'AMT-TK', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
+    methods = ['CS-CENS', 'CS-DLNCO', 'CS-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP', 'AMT-BD', 'AMT-TK', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
 
     cpu_count = os.cpu_count() or 1
     max_workers = max(1, int(cpu_count * 0.2))

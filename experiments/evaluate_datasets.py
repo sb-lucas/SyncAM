@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dotenv import load_dotenv
-from scores.Cross_Correlation_score import Cross_Correlation_score #CC-SPEC, CC-CENS, CC-DLNCO
+from scores.Cosine_Similarity_score import Cosine_Similarity_score #CS-SPEC, CS-CENS, CS-DLNCO
 from scores.MrMsDTW_score import MrMsDTW_score #MrMsDTW-CENS, MrMsDTW-DLNCO
 from scores.Embedding_Distance_score import Embedding_Distance_score #CLAMP3, CLAP
 from scores.Onset_F_score import Onset_F_score #Onset-F1
@@ -14,25 +14,25 @@ from scores.Transcription_IOI_score import Transcription_IOI_score #AMT-IOI
 
 def get_method_config(method, root_dir):
     """Returns feature folders, score function, and file extensions for a given method."""
-    if method == 'CC-CENS':
+    if method == 'CS-CENS':
         return (
             os.path.join(root_dir, "audios_cens"),
             os.path.join(root_dir, "original_midi_cens"),
-            Cross_Correlation_score,
+            Cosine_Similarity_score,
             '.npy'
         )
-    elif method == 'CC-DLNCO':
+    elif method == 'CS-DLNCO':
         return (
             os.path.join(root_dir, "audios_dlnco"),
             os.path.join(root_dir, "original_midi_dlnco"),
-            Cross_Correlation_score,
+            Cosine_Similarity_score,
             '.npy'
         )
-    elif method == 'CC-SPEC':
+    elif method == 'CS-SPEC':
         return (
             os.path.join(root_dir, "audios_spectrogram"),
             os.path.join(root_dir, "original_midi_spectrogram"),
-            Cross_Correlation_score,
+            Cosine_Similarity_score,
             '.npy'
         )
     elif method == 'MrMsDTW-CENS':
@@ -130,10 +130,11 @@ def main():
 
     results_folder = os.path.join(EXPERIMENTS_FOLDER, 'results')
     os.makedirs(results_folder, exist_ok=True)
-    csv_path = os.path.join(results_folder, "evaluate_datasets.csv")
+    csv_path = os.path.join(results_folder, "table_evaluate_datasets.csv")
 
     datasets = ['smd', 'maestro', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
-    methods = ['CC-CENS', 'CC-DLNCO', 'CC-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP', 'AMT-BD', 'AMT-TK', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
+    #methods = ['CS-CENS', 'CS-DLNCO', 'CS-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP', 'AMT-BD', 'AMT-TK', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
+    methods = ['CS-CENS', 'CS-SPEC', 'MrMsDTW-CENS', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
 
     cpu_count = os.cpu_count() or 1
     max_workers = max(1, int(cpu_count * 0.2))
@@ -144,25 +145,28 @@ def main():
         df_existing = pd.read_csv(csv_path, index_col='Dataset')
         results = df_existing.to_dict(orient='index')
     else:
-        results = {dataset: {method: -1 for method in methods} for dataset in datasets}
+        results = {dataset: {method: "-1" for method in methods} for dataset in datasets}
     
     for dataset in datasets:
         print(f"\nProcessing: {dataset}")
         root_dir = os.path.join(DATASETS_FOLDER, dataset)
 
-        # 2. Iterate through each method and compute scores
+        if dataset not in results:
+            results[dataset] = {method: "-1" for method in methods}
+
+        # Iterate through each method and compute scores
         for method in methods:
-            if results[dataset][method] != -1:
+            if str(results[dataset].get(method, "-1")) != "-1":
                 print(f"Score for {method} in {dataset} already computed, skipping.")
                 continue
 
             audios_dir, midis_dir, score_fn, file_ext = get_method_config(method, root_dir) 
 
-            sum_scores = 0
-            for i, audio_file in enumerate(os.listdir(audios_dir)):
-                print(f"[{i+1}/{len(os.listdir(audios_dir))}] Processing {method} for {audio_file}")
-
-                    
+            scores = []
+            audio_files = os.listdir(audios_dir)
+            
+            for i, audio_file in enumerate(audio_files):
+                print(f"[{i+1}/{len(audio_files)}] Processing {method} for {audio_file}")
 
                 basename = os.path.splitext(audio_file)[0]
                 audio_path = os.path.join(audios_dir, basename + file_ext)
@@ -172,24 +176,26 @@ def main():
                     audio_feat = np.load(audio_path)
                     midi_feat = np.load(midi_path)
                 elif file_ext == '.mid':
-                    # For transcription methods, we pass the file path
                     audio_feat = audio_path
                     midi_feat = midi_path
                     if dataset == 'maestro':
-                        midi_feat = midi_path+'i'
-    
+                        midi_feat = midi_path + 'i'
 
-                sum_scores += score_fn(audio_feat, midi_feat)
+                score = score_fn(audio_feat, midi_feat)
+                scores.append(score)
 
-            #save csv
-            # Convert dictionary where outer keys (datasets) become rows and inner keys (methods) become columns
-            results[dataset][method] = sum_scores/len(os.listdir(audios_dir))  # Average score for the method
+            # Compute mean and standard deviation across all pairs
+            mean_score = np.mean(scores)
+            std_score = np.std(scores, ddof=1)  # Sample standard deviation
+
+            # Save formatted string "mean ± std" to the dictionary
+            results[dataset][method] = f"{mean_score} ± {std_score}"
+            
+            # Save checkpoint
             df = pd.DataFrame.from_dict(results, orient='index')
             df.index.name = 'Dataset'
             df.to_csv(csv_path)
-            print('saved checkpoint')
+            print('Saved checkpoint.')
 
-        
 if __name__ == "__main__":
     main()
-

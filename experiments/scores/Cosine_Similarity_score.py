@@ -1,9 +1,9 @@
 import numpy as np
 #import torch
 
-def Cross_Correlation_score(audio_features, midi_features):
+def Cosine_Similarity_score(audio_features, midi_features):
     """
-    Computes the cross-correlation between two sets of features.
+    Computes the frame-wise cosine similarity between two sets of features.
 
     Args:
         audio_features: (F, T1)
@@ -18,16 +18,21 @@ def Cross_Correlation_score(audio_features, midi_features):
     #make sure they have the same number of frequency bins
     assert S1.shape[0] == S2.shape[0] 
 
-    # --- match length (truncate to shortest) ---
-    T = min(S1.shape[1], S2.shape[1])
-    S1 = S1[:, :T]
-    S2 = S2[:, :T]
-
     def normalize(S):
         return S / (np.linalg.norm(S, axis=0, keepdims=True) + 1e-8)
 
+    #normalize before padding
     S1 = normalize(S1)
     S2 = normalize(S2)
+
+    # --- match length (pad with zeros) ---
+    T1, T2 = S1.shape[1], S2.shape[1]
+    T = max(T1, T2)
+    if T1 < T:
+        S1 = np.pad(S1, ((0, 0), (0, T - T1)), mode='constant')
+    if T2 < T:
+        S2 = np.pad(S2, ((0, 0), (0, T - T2)), mode='constant')
+
 
     # --- cosine similarity across all frames ---
     corr = np.mean(np.sum(S1 * S2, axis=0))
