@@ -10,7 +10,7 @@ def run_clamp3_embd(input_dir, output_dir, clamp_script_path):
     clamp_dir = os.path.dirname(os.path.abspath(clamp_script_path))
     code_dir = os.path.join(clamp_dir, "code")
     
-    # Path to Conda bin directory (/home/ldsbrandao/exp/miniconda3/envs/clamp3/bin)
+    # Path to Conda bin directory 
     python_bin_dir = os.path.dirname(sys.executable)
 
     env = os.environ.copy()
@@ -56,7 +56,7 @@ def main():
     print("Running in strictly sequential mode (0 background workers).")
     print(f"Running on: {device}")
     
-    CLAMP3_EMBD_PATH = "/home/ldsbrandao/exp/clamp3/clamp3_embd.py"
+    CLAMP3_EMBD_PATH = os.environ['CLAMP3_EMBD_PATH']
 
     #main loop
     for dataset in datasets:

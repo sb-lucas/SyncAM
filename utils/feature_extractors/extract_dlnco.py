@@ -12,17 +12,17 @@ def get_audio_dlnco(audio_path, fs=22050, feature_rate=22050/64):
     # Since hop_length = 64 (~3 ms at 22.05 kHz), we set feature_rate = fs / hop_length (~344.53 Hz) to match the same time resolution
 
     """Extracts DLNCO features from an audio file."""
-    # 1. Load audio (mixdown to mono)
+    # Load audio (mixdown to mono)
     audio, _ = librosa.load(audio_path, sr=fs, mono=True)
     
-    # 2. Calculate the desired sequence length based on duration
+    # Calculate the desired sequence length based on duration
     duration_sec = len(audio) / fs
     seq_length = int(np.ceil(duration_sec * feature_rate))
     
-    # 3. Extract the onset peaks using the IIR filterbank
+    # Extract the onset peaks using the IIR filterbank
     peaks_dict = audio_to_pitch_onset_features(f_audio=audio, Fs=fs)
     
-    # 4. Compute DLNCO from the peaks
+    # Compute DLNCO from the peaks
     dlnco = pitch_onset_features_to_DLNCO(
         f_peaks=peaks_dict, 
         feature_sequence_length=seq_length, 
@@ -43,7 +43,7 @@ def get_midi_dlnco(midi_path, duration_sec=None, feature_rate=22050/64):
         
     seq_length = int(np.ceil(duration_sec * feature_rate))
     
-    # 1. Manually build the f_peaks dictionary
+    # Manually build the f_peaks dictionary
     temp_peaks = {}
     
     for instrument in midi_data.instruments:
@@ -71,7 +71,7 @@ def get_midi_dlnco(midi_path, duration_sec=None, feature_rate=22050/64):
             temp_peaks[pitch]['onsets'].append(onset_ms)
             temp_peaks[pitch]['mags'].append(magnitude)
             
-    # 2. Format the dictionary exactly as synctoolbox expects (2xN numpy arrays)
+    # Format the dictionary exactly as synctoolbox expects (2xN numpy arrays)
     f_peaks = {}
     for pitch, data in temp_peaks.items():
         onsets = np.array(data['onsets'])
@@ -79,7 +79,7 @@ def get_midi_dlnco(midi_path, duration_sec=None, feature_rate=22050/64):
         # Stack them into a 2xN array
         f_peaks[pitch] = np.vstack((onsets, mags))
         
-    # 3. Compute DLNCO directly from our custom MIDI peaks
+    # Compute DLNCO directly from our custom MIDI peaks
     dlnco = pitch_onset_features_to_DLNCO(
         f_peaks=f_peaks, 
         feature_sequence_length=seq_length, 

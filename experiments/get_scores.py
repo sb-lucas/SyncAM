@@ -135,7 +135,6 @@ def evaluate_audio_group(args):
     audio_path, midi_tasks, method_name, score_fn = args
     results = []
 
-    # 1. Load Audio Feature ONCE
     # mmap_mode='r' is a huge speedup for numpy! 
     # It reads the file virtually without loading the whole thing to RAM at once if not needed.
     if method_name.startswith('AMT'):
@@ -144,7 +143,7 @@ def evaluate_audio_group(args):
     else:
         audio_feature = np.load(audio_path, mmap_mode='r')
 
-    # 2. Iterate through all corrupted MIDIs for this audio
+    # Iterate through all corrupted MIDIs for this audio
     if method_name.startswith('AMT'):
         for idx, path in midi_tasks:
             midi_feature = path # Just pass the path; the scoring function will handle loading
@@ -183,7 +182,7 @@ def main():
         dataset_clean_name = dataset.replace('/', '_')
         results_path = os.path.join(results_folder, f"{dataset_clean_name}_results.csv")
 
-        # 1. Initialize or load DataFrame
+        # Initialize or load DataFrame
         if os.path.exists(results_path):
             df = pd.read_csv(results_path)
         else:
@@ -207,7 +206,7 @@ def main():
             df = pd.DataFrame(records)
             df.to_csv(results_path, index=False)
             
-        # 2. Iterate through each method and compute scores
+        # Iterate through each method and compute scores
         for method in methods:
             # Initialize method column if missing
             if method not in df.columns:

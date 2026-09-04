@@ -32,7 +32,7 @@ def load_midi_notes(midi_path):
     return intervals, pitches
 
 def Transcription_score(audio_transcribed_midi_path, midi_path):
-    # 1. Extract notes from ground truth and your transcribed MIDI
+    # Extract notes from ground truth and your transcribed MIDI
     ref_intervals, ref_pitches = load_midi_notes(midi_path)
     est_intervals, est_pitches = load_midi_notes(audio_transcribed_midi_path)
 
@@ -40,7 +40,7 @@ def Transcription_score(audio_transcribed_midi_path, midi_path):
     if len(ref_intervals) == 0 or len(est_intervals) == 0:
         return 0.0
 
-    # 2. Run mir_eval evaluation
+    # Run mir_eval evaluation
     scores = mir_eval.transcription.evaluate(
         ref_intervals, 
         ref_pitches, 

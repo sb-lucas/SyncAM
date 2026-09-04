@@ -133,7 +133,6 @@ def main():
     csv_path = os.path.join(results_folder, "table_evaluate_datasets.csv")
 
     datasets = ['smd', 'maestro', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
-    #methods = ['CS-CENS', 'CS-DLNCO', 'CS-SPEC', 'MrMsDTW-CENS', 'MrMsDTW-DLNCO', 'CLAMP3', 'CLAP', 'Onset-F1', 'Onset-MAE', 'AMT-BP', 'AMT-BD', 'AMT-TK', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
     methods = ['CS-CENS', 'CS-SPEC', 'MrMsDTW-CENS', 'AMT-IOI-BP', 'AMT-IOI-BD', 'AMT-IOI-TK']
 
     cpu_count = os.cpu_count() or 1

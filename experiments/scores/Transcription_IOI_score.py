@@ -50,7 +50,7 @@ def Transcription_IOI_score(audio_transcribed_midi_path, midi_path, tau=0.05):
     ref_onsets, ref_pitches, ref_iois = ref_notes[:, 0], ref_notes[:, 1], ref_notes[:, 2]
     est_onsets, est_pitches, est_iois = est_notes[:, 0], est_notes[:, 1], est_notes[:, 2]
 
-    # 1. Build the 3D Cost Matrix
+    # Build the 3D Cost Matrix
     onset_diffs = np.abs(ref_onsets[:, np.newaxis] - est_onsets)
     ioi_diffs = np.abs(ref_iois[:, np.newaxis] - est_iois)
     
@@ -63,10 +63,10 @@ def Transcription_IOI_score(audio_transcribed_midi_path, midi_path, tau=0.05):
     LARGE_PENALTY = 1e6
     cost_matrix = np.where(pitch_matches, total_time_diffs, LARGE_PENALTY)
 
-    # 2. Hungarian Algorithm
+    # Hungarian Algorithm
     ref_indices, trans_indices = linear_sum_assignment(cost_matrix)
 
-    # 3. Filter Pitch Mismatches
+    # Filter Pitch Mismatches
     valid_costs = []
     for r_idx, t_idx in zip(ref_indices, trans_indices):
         cost = cost_matrix[r_idx, t_idx]
@@ -78,7 +78,7 @@ def Transcription_IOI_score(audio_transcribed_midi_path, midi_path, tau=0.05):
     if len(valid_costs) == 0:
         return 0.0
 
-    # 4. Continuous Scoring
+    # Continuous Scoring
     avg_time_errors = np.array(valid_costs)
 
     #this turns each note into 1 or 0, but with a smooth transition for notes that are close to the threshold, instead of a hard cutoff.

@@ -8,5 +8,7 @@
 /maps
 /datasets
 /__pycache__
+__pycache__
 *.pyc
 .env
+.vscode/

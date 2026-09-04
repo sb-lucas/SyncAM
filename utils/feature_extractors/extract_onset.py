@@ -38,18 +38,14 @@ def get_onsets_from_midi(midi_file, combine=0.03):
             
     return np.array(merged)
 
-#_onset_proc = None
-#_peak_proc = None
 
 def get_madmom_onsets(audio_file, method="cnn"):
     """
     Extract onset times using madmom's onset processors.
     """
-    #global _onset_proc, _peak_proc
 
     # Lazy-load: The worker checks if it already loaded the model. 
     # If not, it loads it ONCE and keeps it in memory for the next files.
-    #if _onset_proc is None:
     if method.lower() == "cnn":
         _onset_proc = madmom.features.onsets.CNNOnsetProcessor()
     elif method.lower() == "rnn":
@@ -93,7 +89,6 @@ def process_midi(midi, corrupt_midi_dir, corrupt_midi_onsets_dir):
         np.save(onsets_save_path, onsets)
 
     return midi
-
 
 def run_parallel(files, worker_function, worker_args, max_workers, description, chunksize=1):
     total = len(files)
@@ -154,7 +149,6 @@ def main():
         # -------------------------
         # Audio onsets
         # -------------------------
-
         audio_files = [f for f in os.listdir(original_audio_dir) if f.endswith(".wav") or f.endswith(".mp3")]
 
         run_parallel(
@@ -172,7 +166,6 @@ def main():
         # -------------------------
         # MIDI onsets
         # -------------------------
-
         midi_files = [f for f in os.listdir(corrupt_midi_dir) if f.endswith(".mid") or f.endswith(".midi")]
 
         run_parallel(

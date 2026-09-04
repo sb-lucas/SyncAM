@@ -58,11 +58,6 @@ def main():
     # ----------------------------- Argparse Setup ---------------------------------- #
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--dataset_name",
-        required=True,
-        help="Name of the dataset to use"
-    )
-    parser.add_argument(
         "--original",
         action="store_true",
         help="Extract only from the original data."
@@ -71,12 +66,10 @@ def main():
     # ----------------------------- Environment & Config ---------------------------------- #
     load_dotenv()
     DATASETS_FOLDER = os.environ["DATASETS_FOLDER"]
-    #if args.original:
-        #datasets = ['maestro', 'smd', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
-    #else:
-        #datasets = ['maestro', 'smd', 'maps_synth']
-
-    datasets = [args.dataset_name]
+    if args.original:
+        datasets = ['maestro', 'smd', 'maps_synth', 'maps_ENSTDkAm', 'maps_ENSTDkCl', 'musicnet']
+    else:
+        datasets = ['maestro', 'smd', 'maps_synth']
 
     #----------------------Load the models once--------------------------#
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -134,6 +127,5 @@ def main():
             print(f"{i+1}/{tam_corrupt}")
 
 if __name__ == "__main__":
-    print("começo")
     main()
 
